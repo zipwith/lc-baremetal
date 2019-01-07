@@ -1,0 +1,18 @@
+#----------------------------------------------------------------------------
+# Rules for making a cdrom image
+
+cdrom.iso: cdrom
+	grub_mkisofs_arguments=-f grub-mkrescue -o cdrom.iso cdrom
+
+# make a basic cdrom image with grub
+cdrom: grub.cfg image.gz
+	mkdir -p cdrom/boot/grub
+	cp grub.cfg cdrom/boot/grub
+	cp ../mimg/mimgload cdrom
+	mv image.gz cdrom
+	touch cdrom
+
+image.gz: image
+	gzip -fvv9 image
+
+#----------------------------------------------------------------------------

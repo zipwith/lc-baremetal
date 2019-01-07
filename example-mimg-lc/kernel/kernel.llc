@@ -1,0 +1,20 @@
+This file contains a recreation of the LLP "example-mimg" demo.
+
+> require "wvram.llc"
+> require "mimg.llc"
+> require "cursor.llc"
+
+> external bootdata = 0x1000 :: Ref MimgBootData
+
+The program just clears the screen and displays a textual
+description of the boot data that has been passed in by
+`mimgload`:
+
+> export kernel
+> kernel :: Proc Unit
+> kernel
+>   = do clearScreen
+>        puts "Trivial kernel has booted!\n"
+>        putMimgBootData bootdata
+>        puts "Halting kernel, returning to mimgload\n"
+

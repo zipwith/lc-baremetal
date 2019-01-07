@@ -1,0 +1,271 @@
+OPERATIONS FOR WINDOW-BASED "PRINTING" TO VIDEO RAM:
+----------------------------------------------------
+The code in this file is a generalization of the simple video
+RAM code that supports output to "windows" in video RAM (by
+which we mean non-overlapping, rectangular regions of the
+screen).
+
+> require "core.llc"
+> require "ix.llc"
+> require "string.llc"
+> require "put.llc"
+> require "noinline.mil"
+
+BASIC DEFINITIONS FOR VIDEO RAM:
+--------------------------------
+On a standard PC, we can implement a simple form of output on
+the display by writing values to a region of memory known as the
+"video RAM" that begins at address 0xb8000:
+
+> external vram  = 0xb8000 :: Ref Screen
+
+The video RAM is organized as an array of 25 lines, each of
+which is an array of 80 "characters"  that are made up from
+two bytes specifying a character code and a color attribute:
+
+> type NumCols   = 80
+> type NumRows   = 25
+> type Screen    = Array NumRows (Array NumCols (Stored Char))
+
+> bitdata Char /16 = Char [ attr :: Byte | char :: Byte ]
+
+The definition of `Char` has been chosen to match the design of
+the video RAM hardware on a standard PC, assuming a little-endian
+representation that places the `char` and `attr` components in
+consecutive memory locations.  For the time being, we represent
+both characters and color attributes using plain Byte values:
+(For a more complete library, it would be useful to provide a
+more bitdata type for attributes that allows color names to be
+written using symbolic names instead of plain numeric codes.)
+
+We provide a simple function for constructing Char values by
+taking the character code from the least signicant byte of a
+`Word` value, and combining that with a default video attribute:
+
+> char  :: Word -> Char
+> char w = Char [ attr=defAttr | char=wordToByte w]
+
+> defAttr = X0a     -- Green text on a black background 
+> blank   = char ' '
+
+We can use the following function to determine the address for
+the character with particular coordinate values.  Note that it
+is important to use the correct order for the two `@` operations
+used here: reversing the order would result in a compile-time
+type error:
+
+> pos        :: Ix NumRows -> Ix NumCols -> Ref (Stored Char)
+> pos row col = (vram @ row) @ col
+
+WINDOW STRUCTURES:
+------------------
+In the remainder of this file, we will provide functions that
+support printing to multiple (non-overlapping) windows on the
+screen.  Each of these will be described by a `Window` structure
+that represents a fixed region on the screen between some given
+pair of `topleft` and `bottomright` coordinates.  The structure
+also stores a `current` cursor position for the window, as well
+as a video attribute to to be used for each character that is
+printed in the window:
+
+> struct Window
+>   [ topleft     :: Coord   -- top left coordinate (fixed)
+>   | bottomright :: Coord   -- bottom right coordinate (fixed)
+>   | current     :: Coord   -- current coordinate (varies)
+>   | attr        :: Stored Byte ] aligned 8
+
+> struct Coord
+>   [ row :: Stored (Ix NumRows)
+>   | col :: Stored (Ix NumCols) ]
+
+We can initialize a window with a given set of coordinates by
+setting the `current` position to coincide with the `topleft`
+coordinate:
+
+> export window
+> window  :: Ix NumRows -> Ix NumCols ->     -- top    left
+>              Ix NumRows -> Ix NumCols ->   -- bottom right
+>                Init Window
+> window top left bottom right
+>   = Window [ topleft | bottomright | current <- topleft | attr ]
+>     where topleft     = Coord [ row <- initStored top
+>                               | col <- initStored left  ]
+>           bottomright = Coord [ row <- initStored bottom
+>                               | col <- initStored right ]
+>           attr        = initStored defAttr
+
+For example, we can described a `console` window that covers the
+full screen using the following definition:
+
+> export console
+> area console <- window ix0 ix0 maxBound maxBound :: Ref Window
+
+In practice, we will expect the values in each `Window` to
+satisfy `top <= bottom` and `left <= right`.  In cases where
+the expected upper bound is actually lower than the specified
+lower bound (e.g., if `right < left`) we will interpret the
+range as containing only the lower bound value.  This means
+that every `Window` will contain at least one position on
+the screen, and that we do not have to check for an empty
+window before each `putchar` operation.
+
+With this interpretation, a general pattern for looping over
+the elements within a range of index value from `lo` to `hi`
+can be captured using the following higher-order function.
+(Note, in particular, that this function always calls `f`
+for the lowest index value, but will only continue to higher
+indices if `lo < hi`.)
+
+> for :: Ix n -> Ix n -> (Ix n -> Proc Unit) -> Proc Unit
+> for lo hi f = loop lo
+>   where loop i = do f i
+>                     case i `ltInc` hi of
+>                       Nothing -> return Unit
+>                       Just j  -> loop j
+
+OPERATIONS ON WINDOWS:
+----------------------
+One of the first steps that a program might take before using
+a `Window` is to set the video attribute to something other
+than the default:
+
+> export wsetAttr :: Ref Window -> Byte -> Proc Unit
+> wsetAttr w a     = set w.attr a
+
+To clear a window, we must write a blank character in every
+position within the window and reset the `current` position to
+the top left coordinate:
+
+> export clearWindow :: Ref Window -> Proc Unit
+> clearWindow w
+>   = do top    <- get w.topleft.row     -- get top left coords
+>        left   <- get w.topleft.col
+>        set w.current.row top           -- reset current position
+>        set w.current.col left
+>        bottom <- get w.bottomright.row -- get bottom right coords
+>        right  <- get w.bottomright.col
+>        attr   <- get w.attr            -- fill window with blanks
+>        for top bottom (\row ->
+>          for left right (\col ->
+>            set (pos row col) blank[attr]))
+
+We provide a `wputchar` function for "printing" a single
+character at the current position within a given window.
+This involves writing the specified character at the current
+position; advancing the current position; and, if necessary,
+scrolling the screen when the output reaches the last line
+of the display.  So long as the character to be displayed is
+not a carriage return or line feed, the first step is to
+find the current cursor coordinates, and overwrite the
+corresponding location in video RAM with that character.
+After this, we begin the process of moving to the next
+character position, which starts by incrementing the column
+number:
+
+> export wputchar :: Ref Window -> Word -> Proc Unit
+> wputchar w c
+>   = do row <- get w.current.row
+>        if (c == '\r') || (c == '\n')
+>          then newline w row
+>          else col  <- get w.current.col
+>               attr <- get w.attr
+>               set (pos row col) (char c)[attr]
+>               right <- get w.bottomright.col
+>               case col `ltInc` right of
+>                 Just newcol -> set w.current.col newcol
+>                 Nothing     -> newline w row
+
+If incrementing `col` succeeds, then we can just save the new
+column number and return.  Otherwise, however, we have reached
+the end of one line, and need to increment the `row` coordinate
+to move the cursor on to the next line:
+
+> newline :: Ref Window -> Ix NumRows -> Proc Unit
+> newline w row
+>   = do w.topleft.col >-> w.current.col -- reset column
+>        bottom <- get w.bottomright.row
+>        case row `ltInc` bottom of      -- move down screen if we can
+>          Just newrow -> set w.current.row newrow
+>          Nothing     -> scroll w       -- scroll at the bottom
+
+In most cases, we can save the incremented `row` coordinate and
+return to the caller.  But if the cursor was already on the
+last line of the window, then the increment will fail and we
+need to scroll the contents of the screen to make space for
+new output.  This can be implemented using a simple loop that
+copies from each row `i` to its successor row `j=i+1` in the
+top portion of the screen, and then ends by writing a fresh
+row of blanks in the last line:
+
+> scroll :: Ref Window -> Proc Unit
+> scroll w
+>   = do top    <- get w.topleft.row     -- get top left coords
+>        left   <- get w.topleft.col
+>        bottom <- get w.bottomright.row -- get bottom right coords
+>        right  <- get w.bottomright.col
+>        attr   <- get w.attr            -- attribute for blank line
+>        let loop row      = case row `ltInc` bottom of
+>                              Just next -> do copy next row
+>                                              loop next
+>                              Nothing   -> clear
+>            copy next row = for left right (\col ->
+>                              pos next col >-> pos row col)
+>            clear         = for left right (\col ->
+>                                 set (pos bottom col) blank[attr])
+>        loop top
+
+PRINTING ON THE "CONSOLE":
+--------------------------
+
+> export clearScreen              :: Proc Unit
+> export putchar                  :: Putchar
+> export puts                     :: Ref String -> Proc Unit
+> export putUnsigned, putSigned   :: Putnum
+> export putBin, putOctal, putHex :: Putnum
+> export putSize                  :: Putnum
+> export putDigitsFmt
+>   :: NZBit WordSize -- number base
+>      -> Ix MaxWidth -- maximum number of digits to display
+>      -> Ix MaxWidth -- minimum field width
+>      -> Word        -- character to use as padding
+>      -> Putnum
+
+> clearScreen = clearWindow  console
+> putchar     = wputchar     console
+> puts        = hputs        putchar
+> putUnsigned = hputUnsigned putchar
+> putSigned   = hputSigned   putchar
+> putBin      = hputBin      putchar
+> putOctal    = hputOctal    putchar
+> putHex      = hputHex      putchar
+> putSize     = hputSize     putchar
+> putDigitsFmt base max min padchar
+>             = hputDigitsFmt base max min padchar putchar
+
+PRINTING IN A WINDOW:
+---------------------
+
+> export wputs                       :: Ref Window -> Ref String -> Proc Unit
+> export wputUnsigned, wputSigned    :: Ref Window -> Putnum
+> export wputBin, wputOctal, wputHex :: Ref Window -> Putnum
+> export wputSize                    :: Ref Window -> Putnum
+> export wputDigitsFmt
+>   :: Ref Window        -- address of output window
+>      -> NZBit WordSize -- number base
+>      -> Ix MaxWidth    -- maximum number of digits to display
+>      -> Ix MaxWidth    -- minimum field width
+>      -> Word           -- character to use as padding
+>      -> Putnum
+
+> wputs        w = hputs        (wputchar w)
+> wputUnsigned w = hputUnsigned (wputchar w)
+> wputSigned   w = hputSigned   (wputchar w)
+> wputBin      w = hputBin      (wputchar w)
+> wputOctal    w = hputOctal    (wputchar w)
+> wputHex      w = hputHex      (wputchar w)
+> wputSize     w = hputSize     (wputchar w)
+> wputDigitsFmt w base max min padchar
+>                = hputDigitsFmt base max min padchar (wputchar w)
+
+-------------------
+

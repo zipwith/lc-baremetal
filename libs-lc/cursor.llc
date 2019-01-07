@@ -1,0 +1,75 @@
+Cursors:
+--------
+
+> require "core.llc"
+
+The following combinator defines a general pattern for
+iterating over all of the values that can be produced from
+a given cursor:
+
+> export forallDo :: (c -> Maybe (Pair a c))   -- a next function
+>                 -> (a -> Proc Unit)          -- action for each value
+>                 -> (c -> Proc Unit)          -- the main function
+> forallDo next action c
+>   = case next c of
+>       Nothing -> return Unit
+>       Just p  -> do action (fst p)
+>                     forallDo next action (snd p)
+
+If we want to have access to a record count (or some other
+kind of "state") as we iterate through a set of items using
+a cursor, then we need to use a generalization of `forallDo`:
+
+> export forallDoWith :: (c -> Maybe (Pair a c)) -- a next function
+>                     -> (s -> a -> Proc s)      -- action for each value
+>                     -> (s -> c -> Proc s)      -- the main function
+> forallDoWith next action s c
+>   = case next c of
+>       Nothing -> return s
+>       Just p  -> do t <- action s (fst p)
+>                     forallDoWith next action t (snd p)
+
+We can use this function, for example, to turn a function
+for displaying a single item into a function for printing
+out a list from a cursor, with each item preceded by a label
+and an item number:
+
+> export forallDisplay :: (c -> Maybe (Pair a c))  -- next function
+>                      -> (a -> Proc Unit)         -- display item
+>                      -> Ref String               -- label
+>                      -> (c -> Proc Unit)
+> forallDisplay next put label c
+>    = do forallDoWith next addLabel 0 c
+>         return Unit
+>   where addLabel i a = do puts " "
+>                           puts label
+>                           puts "["
+>                           putUnsigned i
+>                           puts "]: "
+>                           put a
+>                           puts "\n"
+>                           return (i+1)
+
+--------
+Endnotes:
+
+In a Habit version of this library, we should be able to
+associate each cursor type with a unique `next` implementation.
+
+And for the `forallDisplay` function, we should also set
+up some classes so that the `put` function can be selected
+automatically based on the value type ...
+
+The definitions above assume "pure" cursors where the `next`
+operation is a pure function.  However, there are also
+"procedure" cursors whose `next` functions have types of
+the form:
+
+   next :: c -> Proc (Maybe (Pair a c))
+
+(One simple example of this is the cursor type for traversing
+a null-terminated string.  A cursor that moves through a
+linked list would be another example.)  There are probably
+corresponding "procedure" variations for each of the general
+cursor operations defined above ...
+

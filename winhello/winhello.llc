@@ -1,0 +1,67 @@
+This file contains a recreation of the LLP "hello" demo in Habit/LC.
+It is a (very) simple client of the vram library for video RAM output
+on a PC:
+
+> require "wvram.llc"
+
+We declare four text windows, one for each corner of the screen:
+
+> area topleft   <- wix  0  0 11 39 :: Ref Window
+> area topright  <- wix  0 40 11 79 :: Ref Window
+> area botleft   <- wix 12  0 23 39 :: Ref Window
+> area botright  <- wix 12 40 23 79 :: Ref Window
+
+For convenience, we declare a custom initializer that applies modIx
+to each of the specified coordinates:
+
+> wix t l b r = window (wordModIx t) (wordModIx l) (wordModIx b) (wordModIx r)
+
+Our new demo program clears the (full) screen and then writes different output
+to each of the four windows:
+
+> export hello
+> hello :: Proc Unit
+> hello  = do clearScreen
+>
+>             winit topleft X07   -- white text, black background
+>             greet topleft
+>
+>             winit botright X1e  -- yellow text, blue background (Sweden!)
+>             greet botright
+>
+>             winit topright X20  -- black text, green background (PSU!)
+>             wputs topright "6 * 7 = "
+>             wputHex topright (6 * 7)
+>             wputchar topright '\n'
+>
+>             winit botleft X4d   -- light magenta text, red background (Uggh!)
+>             facTable botleft 20
+
+> winit    :: Ref Window -> Byte -> Proc Unit
+> winit w a = do wsetAttr w a
+>                clearWindow w
+
+> facTable w n = loop 0 1
+>  where loop i f = if i >= n
+>                     then return Unit
+>                     else do wputs w "fac("
+>                             wputDigitsFmt w nz10 maxBound ix2 ' ' i
+>                             wputs w ") = "
+>                             wputDigitsFmt w nz10 ix5 ix4 ' ' f
+>                             wputs w "\n"
+>                             loop (i + 1) ((i + 1) * f)
+
+The greeting itself is produced by writing a sequence of strings on
+the screen:
+
+> greet w = do wputs w "\nhhhh   hhhh\n"
+>              wputs w " hh    hhh        lll lll\n"
+>              wputs w " hh    hh   eeee  ll  ll   oooo\n"
+>              wputs w " hhhhhhhh  ee  ee ll  ll  oo  oo\n"
+>              wputs w " hh    hh eeeeeee ll  ll oo   oo\n"
+>              wputs w " hh    hh  ee     ll  ll oo  oo\n"
+>              wputs w "hhh   hhhh  eeee  ll  ll  oooo\n"
+>              wputs w "\n"
+>              wputs w "    K e r n e l   W o r l d\n"
+>              wputs w "\n      from LC and MIL\n"
+

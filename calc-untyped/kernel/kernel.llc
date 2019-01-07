@@ -1,0 +1,72 @@
+This file contains a recreation of the LLP "example-mimg" demo.
+
+> require "wvram.llc"
+> require "intervals.llc"
+> require "mimg.llc"
+
+> external bootdata = 0x1000 :: Ref MimgBootData
+
+> area intervals <- IntervalSet[] :: Ref IntervalSet
+
+The demo program just clears the screen and then displays two copies
+of a text greeting:
+
+> export kernel
+> kernel :: Proc Unit
+> kernel  = do clearScreen
+>              puts "Trivial kernel has booted!\n"
+>              putMimgBootData bootdata
+>              mimgMMap bootdata >>= forallDo nextMimgMMap addInterval
+>              putIntervals intervals
+>              reserveInterval intervals Interval[lo=0|hi=0xf_ff_ff]
+>              reserveInterval intervals Interval[lo=0xc000_0000|hi=0xffff_ffff]
+>              mimgHeaders bootdata >>= forallDo nextMimgHeader reserve
+>              putIntervals intervals
+>              puts "Halting kernel, returning to mimgload\n"
+
+> addInterval :: Ref MimgMMap -> Proc Unit
+> addInterval mmap
+>   = do lo <- get mmap.start
+>        hi <- get mmap.end
+>        let int = Interval[lo|hi]
+>        puts "Adding interval "
+>        putInterval int
+>        b <- insertInterval intervals int
+>        {-
+>        if b then do -- puts "begin\n"
+>                     putIntervals intervals
+>                     -- puts "end\n"
+>             else puts "insert failed\n"
+>        return Unit
+>        -}
+>        puts "\n"
+
+> reserve :: Ref MimgHeader -> Proc Unit
+> reserve header
+>   = do lo <- get header.start
+>        hi <- get header.end
+>        let int = Interval[lo|hi]
+>        puts "Reserving interval "
+>        putInterval int
+>        reserveInterval intervals int
+>        puts "\n"
+
+> {-
+> addIntervals :: MimgMMapCursor -> Proc Unit
+> addIntervals c
+>   = case nextMimgMMap c of
+>       Nothing -> return Unit
+>       Just p  -> do let mmap = fst p
+>                     lo <- get mmap.start
+>                     hi <- get mmap.end
+>                     let int = Interval[lo|hi]
+>                     puts "Adding interval "
+>                     putInterval int
+>                     puts "\n"
+>                     b <- insertInterval intervals int
+>                     if b then do -- puts "begin\n"
+>                                  putIntervals intervals
+>                                  -- puts "end\n"
+>                          else puts "insert failed\n"
+>                     addIntervals (snd p)
+> -}

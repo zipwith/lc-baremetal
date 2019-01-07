@@ -1,0 +1,267 @@
+Accessing Memory Image BootData:
+--------------------------------
+
+`mimg` is a small set of tools for building and using "memory
+images" for booting an operating system on bare metal.  A
+compile-time tool, `mimgmake`, allows the developer to build a
+single memory image that can combine data from multiple with
+details about where the different sections of data should be
+loaded in memory.  A boot-time companion program, `mimgload`, is
+then able to interpret the headers in the resulting memory image
+and move the different sections of data to appropriate locations
+before booting the kernel.  Before `mimgload` hands control to
+the kernel, it will typically build a "boot data" structure
+containing information that may be needed to finalize details of
+the kernel configuration.  The purpose of the code in this file
+is to provide an interface that will allow the kernel to access
+all of the details in that structure.
+
+> require "core.llc"
+> require "cursor.llc"
+
+When a program boots up via `mimg`, it is expected to access a
+`MimgBootData` structure, stored at a predetermined address, to
+find details of the headers (corresponding to reserved sections of
+the address space), memory map (corresponding to available regions
+of memory), and the boot and image command line strings (the
+former is an optional command line string that is specified at
+boot time; the latter is an optional command line that is
+associated with the memory image).
+
+The following diagram illustrates a sample BootData structure
+that, in this case, includes arrays with m headers and n memory
+map entries, together with boot and image command line strings
+(the null-terminated strings "msg1" and "msg2", respectively).
+
+    MimgBootData
+    +---------+---------+---------+---------+
+    | headers | mmap    | cmdline | imgline |
+    +---------+---------+---------+---------+
+      |         |         |         |
+      |         |         |         |  String
+      |         |         |         |  +---+---+---+---+---+---
+      |         |         |         +->|'m'|'s'|'g'|'2'| 0 |...
+      |         |         |            +---+---+---+---+---+---
+      |         |         |
+      |         |         |  String
+      |         |         |  +---+---+---+---+---+---
+      |         |         +->|'m'|'s'|'g'|'1'| 0 |...
+      |         |            +---+---+---+---+---+---
+      |         |
+      |         |   MimgMMapBlock
+      |         |   +---+----------+----------+----------+----
+      |         +-->| n |          |          |          | ...
+      |             +---+----------+----------+----------+----
+      |                  \________/ \________/ \________/ \___
+      |                   MimgMMap   MimgMMap   MimgMMap   ...
+      |
+      |   MimgHeaderBlock
+      |   +---+--------------+--------------+--------------+----
+      +-->| m |              |              |              | ...
+          +---+--------------+--------------+--------------+----
+               \____________/ \____________/ \____________/ \___
+                 MimgHeader     MimgHeader     MimgHeader    ...
+
+
+The layout of the key data structures used here is captured in the
+following definitions:
+
+> struct MimgBootData [ headers :: Stored (Ref MimgHeaderBlock)
+>                     | mmap    :: Stored (Ref MimgMMapBlock)
+>                     | cmdline :: Stored (Ref String)
+>                     | imgline :: Stored (Ref String) ]
+
+> struct MimgHeader   [ start, end, entry :: Stored Word ]
+
+> struct MimgMMap     [ start, end :: Stored Word ]
+
+Each `MimgHeader` specifies a `start` and `end` address for a
+reserved region of memory together with the entrypoint address,
+`entry`, to be used if the corresponding memory region includes
+executable code.  Each `MimgMMap` structure describes a region of
+available memory between the given `start` and `end` addresses.
+In both cases, we assume that the value of `start` is less than or
+equal to the value of `end`, and that the associated memory region
+includes the addresses at each endpoint.
+
+For debugging purposes, we provide functions for generating
+textual descriptions of individual header and mmap structures:
+
+> export putHeader :: Ref MimgHeader -> Proc Unit
+> putHeader header
+>   = do puts "[0x"
+>        get header.start >>= putHex
+>        puts "-0x"
+>        get header.end   >>= putHex
+>        puts "], entry 0x"
+>        get header.entry >>= putHex
+
+> export putMMap :: Ref MimgMMap -> Proc Unit
+> putMMap mmap
+>   = do puts "[0x"
+>        get mmap.start >>= putHex
+>        puts "-0x"
+>        get mmap.end   >>= putHex
+>        puts "]"
+
+The `MimgHeaderBlock` and `MimgMMapBlock` structures do not have
+fixed sizes (each one begins with a count, followed by an array of
+the corresponding length), so we will define them as abstract area
+types and then use cursor abstractions as a way to access their
+contents.
+
+> type MimgHeaderBlock :: area
+> type MimgMMapBlock   :: area
+
+Before we address specifics of these two area types, we can
+consider a general case, illustrated by the following diagram with
+an array of `n` objects, each of size `s`, following an initial
+word that stores the value of `n`:
+
+    +---+---------------+---------------+---------------+-----
+    | n |               |               |               |  ...
+    +---+---------------+---------------+---------------+-----
+    a    <----- s -----> <----- s -----> <----- s ----->
+
+We can iterate through the elements of this array using a cursor
+that stores a pointer to the next element and the number of
+remaining elements.  Using low-level representations, both the
+pointer and the counter can be implemented as single machine
+words:
+
+> bitdata WordCursor /64 = WordCursor [ val :: Word | count :: Word ]
+
+Given the address, `a`, of the start of the structure, we can
+construct a cursor for iterating through the array by pairing the
+address of the first element (which, for a 32-bit wordsize, is 4
+bytes after `a`) with the `count` value that is stored at `a`:
+
+> wordCursor  :: Ref (Stored Word) -> Proc WordCursor
+> wordCursor a = do count <- get a
+>                   return WordCursor [ val = refToWord a + 4 | count ]
+
+This function requires a coercion operator to find the `Word`
+value corresponding to `a`:
+
+> external refToWord = refToWord_imp :: Ref a -> Word
+> refToWord_imp  :: Word -> Word  -- NOTE: compiler error if we remove type sig :-(
+> refToWord_imp x = x
+
+Finally, if we know the size, `s`, of each array element, then we
+can use a `WordCursor`, either to determine that the `count` is
+zero (and hence there are no more elements) or else to return the
+next array element and a new cursor that represents the remaining
+elements of the array:
+
+> nextWordCursor :: Word -> WordCursor -> Maybe (Pair Word WordCursor)
+> nextWordCursor s cursor
+>   = let count = cursor.count
+>     in  if count == 0 then Nothing
+>           else let val = cursor.val
+>                in  Just (Pair val WordCursor[ val   = val   + s
+>                                             | count = count - 1])
+
+The `WordCursor` type, and its related operations, can be
+now be used to provide implementations of cursors for the
+`MimgHeaderBlock` and `MimgMMapBlock` types.  The respective
+cursor types are defined as (almost) abstract types.  The only
+implementation detail that we (have to) expose is the bitsize
+of the two types, which matches the size of the `WordCursor`
+type that will be used for the underlying implementation:
+
+> bitdata MimgHeaderCursor /64
+> bitdata MimgMMapCursor /64
+
+The functions for constucting initial cursor values of these
+types can be implemented using the `wordCursor` function that
+was defined previously:
+
+> external mimgHeaderCursor = wordCursor
+>            :: Ref MimgHeaderBlock  -> Proc MimgHeaderCursor
+> external mimgMMapCursor = wordCursor
+>            :: Ref MimgMMapBlock -> Proc MimgMMapCursor
+
+The `MimgHeaderBlock` and `MimgMMapBlock` structures are only
+used in the context of a `BootData` structure, so instead of
+exporting the two functions above, we provide the following
+convenience methods that construct cursors directly from a
+reference to a `MimgBootData` structure:
+
+> export mimgHeaders :: Ref MimgBootData -> Proc MimgHeaderCursor
+> mimgHeaders bd      = get bd.headers >>= mimgHeaderCursor
+
+> export mimgMMap    :: Ref MimgBootData -> Proc MimgMMapCursor
+> mimgMMap bd         = get bd.mmap >>= mimgMMapCursor
+
+We can also implement the `next` functions for each cursor type
+in terms of `WordCursor` by using the `nextWordCursor`
+operation.  The only additional detail that we need to provide
+is the size of the array elements in each case (12 bytes for
+each `MimgHeader` and 8 bytes for each `MimgMMap` structure):
+
+> export nextMimgHeader, nextMimgMMap
+
+> external nextMimgHeader = nextMimgHeader_imp
+>            :: MimgHeaderCursor -> Maybe (Pair (Ref MimgHeader) MimgHeaderCursor)
+
+> external nextMimgMMap = nextMimgMMap_imp
+>            :: MimgMMapCursor -> Maybe (Pair (Ref MimgMMap) MimgMMapCursor)
+
+> nextMimgHeader_imp = nextWordCursor 12
+> nextMimgMMap_imp   = nextWordCursor 8
+
+Finally, and again for use in debugging, we define a function
+for displaying the contents of a `MimgBootData` structure
+via calls to `puts` and associated functions:
+
+> export putMimgBootData :: Ref MimgBootData -> Proc Unit
+> putMimgBootData bootdata
+>   = do puts "Headers:\n"
+>        mimgHeaders bootdata >>= forallDisplay nextMimgHeader putHeader "header"
+>        puts "Memory map:\n"
+>        mimgMMap    bootdata >>= forallDisplay nextMimgMMap putMMap "mmap"
+>        puts "Strings:\n"
+>        get bootdata.cmdline >>= showMimgString "cmdline"
+>        get bootdata.imgline >>= showMimgString "imgline"
+
+> showMimgString lab str
+>  = do puts " "
+>       puts lab
+>       puts ": "
+>       puts str
+>       puts " ["
+>       putHex (refToWord str)
+>       puts "]\n"
+
+--------
+Endnotes:
+
+The following entrypoint declarations may be uncommented during
+testing so that we can inspect the generated code.
+
+    > entrypoint mimgHeaders, nextMimgHeader
+    > entrypoint mimgMMap, nextMimgMMap
+
+The functions presented here use general `Ref` types, which provides
+both read and write access to the fields in MimgHeader and MimgMMap
+structures.  As a future enhancement, we may wish to switch to using
+a special form of reference type, say `RORef`, that provides only
+read access.  (I don't believe that the current use of `Ref` types
+creates any fundamental problem or source of unsafe behavior---there
+is no way, for example, to change the counts at the beginning of each
+`MimgHeadeBlock` or `MimgMMapBlock` structure, for example---but the
+use of read only references might be desirable as a way to reflect
+intended usage patterns more directly.)
+
+In the future, we might like to think about packaging the
+`WordCursor` implementations as first class values of a type like
+the following:
+
+  data ArrayCursor h c e
+    = ArrayCursor (Ref h -> Proc c) (c -> Maybe (Pair e, c))
+
+Even without the latter, we should probably consider moving the
+`WordCursor` implementations into the "cursor.llc" library, or
+similar, and perhaps add similar templates for other common
+cursor patterns too ...
+

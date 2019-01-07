@@ -1,0 +1,15 @@
+#----------------------------------------------------------------------------
+CCOPTS    = -g -std=gnu99 -O -Wall -nostdlib -nostdinc -Winline \
+	    -nodefaultlibs -fno-builtin -fomit-frame-pointer \
+	    -fno-stack-protector -freg-struct-return
+
+CC	  = clang -m32
+LD        = ld -melf_i386
+CCINCPATH =
+QEMU      = qemu-system-i386
+
+.SUFFIXES:
+.SUFFIXES: .S .s .lc .llc .c .cc .h .o .a .iso .img .gz .cdepn .graph
+
+.PHONY: all clean
+#----------------------------------------------------------------------------
