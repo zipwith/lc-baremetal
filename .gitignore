@@ -1,0 +1,4 @@
+*.o
+*.iso
+cdrom/
+.DS_Store
