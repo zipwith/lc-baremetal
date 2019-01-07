@@ -1,0 +1,156 @@
+mimg tools: Memory Image Boot tools
+
+Mark P Jones, March-April 2006.
+
+[This document is a work in progress; in other words, it's not complete!]
+
+BACKGROUND:
+-----------
+
+Good things about GRUB:
+
+- Loads a kernel in one of several possible executable formats
+  and a collection of uninterpreted modules (i.e., data files);
+
+- Supports booting from a variety of different media and
+  filesystems;
+
+- Supports network booting;
+
+- Can load from compressed kernel and/or module images;
+
+- Boot-time menu and customization;
+
+- Gathers useful system data (e.g., memory map details, command
+  line arguments) and makes it available to booted kernel in the
+  form of "multiboot information";
+
+- Widely used, readily available documentation and examples;
+
+- Implements the "multiboot" standard;
+
+- Open Source, distributed under GPL.
+
+Not so good things:
+
+- Can only load one executable; if you need to load multiple
+  executables, then you must either use a tool to merge the
+  executables or else arrange for the booted kernel to load
+  the additional executables.
+
+- The address at which modules are loaded cannot be controlled
+  or predicted, based only on the documentation for GRUB.  (Of
+  course, with access to source code, it is possible to figure
+  out what the current version of GRUB might do, but can we be
+  sure that will continue to be true in future versions?)
+  
+- The location of the multiboot information structures that GRUB
+  passes to the booted kernel is not specified, and is not
+  even guaranteed to be stored in a single, contiguous block
+  of memory.
+
+- GRUB appears to have limits on where it can load data; for
+  example, the current version of GRUB will report an error
+  if you try to load data within the first megabyte of RAM.
+
+We can work around these problems by arranging for the kernel
+to load additional executables from images that have been loaded
+into memory as GRUB modules.  This, however, can be a little
+complicated:
+
+- The kernel must include functionality to load executable
+  file formats like ELF or a.out, and it must be written
+  to use the conventions and formats of the multiboot standard
+  (for example, it must include a multiboot header structure).
+
+- Special steps must be taken to avoid overwriting one GRUB
+  module in memory with the data from a second until we know
+  that the first will not be required.  In general, we may
+  need to search memory for unused space and copy the first
+  module's data there before loading the second.
+
+- In a similar way, we must take care not to overwrite any
+  part of the multiboot information until we are sure that
+  it will not be needed any more.  For example, the kernel
+  might start by making a fresh copy of the multiboot
+  information in a contiguous block of memory in an unused
+  part of RAM.
+
+- The kernel may discover, at boot time, that the same
+  physical addresses are specified for two or more of the
+  executables that it is supposed to load.  The kernel must
+  include logic and data structures to check for this, and
+  will probably abort the attempted boot if an overlap is
+  detected.  Ideally, it would be good if such problems
+  could be detected and addressed at an earlier stage.
+
+From our perspective, the real job of the boot loader is to
+copy the required data from the boot media into system memory
+and then to pass control to the appropriate kernel entry point.
+The most important detail here is the contents of the memory
+just before we enter the kernel.  At that point, the memory
+can be broken up into disjoint sections, each of which contains
+either:
+
+- bytes loaded from a section in an executable image;
+
+- plain, uninterpreted data from something like a GRUB module;
+
+- system boot information;
+
+- initialized data, set to contain only zero bytes.
+
+(Any part of the memory that is not included in one of these
+sections will contain either whatever random/unspecified values
+might have been there when the system was booted, or else some
+temporary data left behind after loading.)
+
+Once the kernel has started, we really don't care how these
+different kinds of data found their way into memory, just so
+long as the appropriate data has been loaded into the places
+in memory where the kernel expects to find them!  If we could
+take a snapshot of the contents of memory at that point, then
+we could boot the system another time, simply by restoring the
+memory to that same state.
+
+This is the key idea behind the mimg tools; we capture the
+intended contents of the machine's memory just before the kernel
+is supposed to be executed in a "memory image" file.  Using GRUB,
+we can arrange for the system to boot into a generic loader,
+mimgload, that will look for a memory image contained in a single
+GRUB module and the install each of the specified sections in
+memory at the appropriate addresses before branching in to the
+real kernel.  Of course, mimgload must be careful to ensure
+that it does not overwrite either itself or parts of the memory
+image that have not yet been moved to the intended destination.
+Mimgload must also check that the boot machine has appropriate
+sections of physical memory corresponding to the sections listed
+in the image; mimgload will abort the boot attempt, for example,
+if the memory image requires more physical RAM than is available
+or installed on the host machine.
+
+The necessary memory image files can be constructed even before
+the boot media is created using a command link tool called
+mimgmake.  The main function of mimgmake is to combine multiple
+executable files and/or data files (i.e., modules) into a single
+memory image.  Mimgmake is also able to detect conflicts between
+the memory requirements of different components before we make
+the boot media, so that the can be dealt with ahead of time by
+developers, instead of waiting until the system is tested or
+passed on to real users.  Mimgmake can also do things to simplify
+the work of mimgload.  For example, mimgload can asssume that the
+sections in the image will be stored in increasing order of start
+address, which makes it possible to use a simpler algorithm to
+install the image.  (In fact, mimgload will validate the image,
+before attempting to install it, to ensure that this assumption
+is valid, and also to check that other aspects of the format of
+the image are correct.)  The current version of mimgmake knows
+how to load plain data files as well as ELF executables into
+the memory image, which means that mimgload does not need to
+know anything about the format of those files.  If we wanted to
+add support for loading a different type of executable, we would
+need to modify mimgmake, but we could continue to use the same
+version of mimgload.  This is important because we want to keep
+mimgload as small and as simple as we can.
+
+[More to follow ...]
