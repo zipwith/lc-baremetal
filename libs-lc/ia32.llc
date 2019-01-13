@@ -1,0 +1,272 @@
+> require "core.llc"
+> require "bit.llc"
+> require "ix.llc"
+
+> external physNe :: Phys a -> Phys a -> Bool
+
+# USER-LEVEL VIRTUAL MEMORY ADDRESSES
+
+> struct SuperPage /4M
+>   [ bytes :: Array 4M (Stored Byte) ]
+>   aligned 4M
+
+> external superPageToPhys :: Ref  SuperPage -> Phys SuperPage
+> external physToSuperPage :: Phys SuperPage -> Ref SuperPage
+
+> struct Page /4K
+>   [ bytes :: Array 4K (Stored Byte) ]
+>   aligned 4K
+
+> external pageToPhys      :: Ref  Page      -> Phys Page
+> external physToPage      :: Phys Page      -> Ref Page
+
+> bitdata VAddr /WordSize = VAddr [ vp :: VPage | offset :: Bit 12 ]
+>                           -- deriving Eq, ToBits
+> bitdata VPage /20       = VPage [ sp :: Ix UserSuperPages | pg :: Ix 1K ]
+>                           -- deriving Eq, ToBits
+
+> type UserSuperPages    = 768 -- Number of superpages in the user space address range
+> type KernelSuperPages  = 256 -- Number of superpages in the kernel space address range
+> type KernelSuperPages1 = 255 -- should be KernelSuperPages-1
+
+# PAGE DIRECTORIES AND PAGE TABLES
+
+## Page Directory Layout
+
+### User-Space Page Directory Entries
+
+> bitdata PDE /WordSize                                -- Defines format for Page Directory Entries
+>  = UnmappedPDE  [ unused=bit0     :: Bit 31 | B0 ]   -- Unused entry (present bit reset)
+>  | PageTablePDE [ ptab            :: Phys PageTable  -- physical address of page table
+>                 | unused=bit0     :: Bit 4
+>                 | B0                                 -- signals PageTablePDE
+>                 | attrs=readWrite :: PagingAttrs     -- paging attributes
+>                 | B1 ]                               -- present bit set
+>  | SuperPagePDE [ super           :: Phys SuperPage  -- physical address of superpage
+>                 | unused=bit0     :: Bit 13
+>                 | global=False    :: Bool            -- True => global translation (if cr4.pge=1)
+>                 | B1                                 -- signals SuperPagePDE
+>                 | attrs           :: PagingAttrs     -- paging attributes
+>                 | B1 ]                               -- present bit set 
+
+> bitdata PagingAttrs /6
+>  = PagingAttrs [ dirty    = False     :: Bool        -- Dirty; True => data written to page
+>                | accessed = False     :: Bool        -- Accessed; True => page accessed
+>                | caching  = Caching[] :: Caching
+>                | us                   :: Bool        -- User/supervisor; True => user access allowed
+>                | rw                   :: Bool  ]     -- Read/write; True => write access allowed
+
+> bitdata Caching /2                                   -- pwt=True => page-level write thru
+>  = Caching [ pcd=False, pwt=False :: Bool ]          -- pcd=True => page-level cache disable
+
+> readWrite      :: PagingAttrs
+> readWrite       = PagingAttrs[us=True | rw=True]     -- user and write access allowed
+
+> readOnly       :: PagingAttrs
+> readOnly        = PagingAttrs[us=True | rw=False]    -- user access, but no write
+
+> kernelOnly     :: PagingAttrs
+> kernelOnly      = PagingAttrs[us=False | rw=True]    -- kernel only, write allowed
+
+### Kernel-Space Page Directory Entries
+
+> bitdata KPDE /WordSize   -- Kernel Page Directory Entries, a variant of SuperPagePDE
+>  = KPDE [ B00                                 -- leading zeros
+>         | ix          :: Ix KernelSuperPages1 -- physical superpage number
+>         | unused=bit0 :: Bit 13
+>         | global=True :: Bool                 -- True => global translation (if cr4.pge=1)
+>         | B1                                  -- indicates a form of SuperPagePDE
+>         | attrs = kernelOnly :: PagingAttrs   -- paging attributes
+>         | B1 ]
+
+### Page Directory Layout
+
+> external pageDirToPhys   :: Ref  PageDir   -> Phys PageDir
+> external physToPageDir   :: Phys PageDir   -> Ref PageDir
+
+> struct PageDir /4K [ pdes      :: Array UserSuperPages    (Stored PDE)
+>                    | kpdes     :: Array KernelSuperPages1 (Stored KPDE)
+>                    | bufferPDE :: Stored PDE ] 
+>        aligned 4K
+
+> initPageDir :: Init PageDir
+> initPageDir  = PageDir [ pdes      <- initArray (\ix -> initStored UnmappedPDE[])
+>                        | kpdes     <- initArray (\ix -> initStored KPDE[ix])
+>                        | bufferPDE <- initStored bufferPtabPDE ]
+
+> bufferPtabPDE :: PDE
+> bufferPtabPDE  = UnmappedPDE[]     -- TODO: change to point to page table for buffer ...
+
+## Page Table Layout
+
+> bitdata PTE /WordSize                                -- Defines the format for Page Table Entries
+>   = UnmappedPTE  [ unused=bit0  :: Bit 31
+>                  | B0 ]                              -- Unused entry (present bit reset)
+>   | MappedPTE    [ page         :: Phys Page         -- physical address of mapped page
+>                  | unused=bit0  :: Bit 3
+>                  | global=False :: Bool              -- 1 => global translation (if cr4.pge=1)
+>                  | pat=False    :: Bool              -- PAT bit (not used)
+>                  | attrs        :: PagingAttrs       -- paging attributes
+>                  | B1 ]                              -- present bit set
+
+> struct PageTable /4K                                 -- Defines the layout of Page Table objects
+>   [ ptes :: Array 1K (Stored PTE) ]
+>   aligned 4K
+
+> initPageTable :: Init PageTable
+> initPageTable  = PageTable [ ptes <- initArray (\ix -> initStored UnmappedPTE[]) ]
+
+> external pageTableToPhys :: Ref  PageTable -> Phys PageTable
+> external physToPageTable :: Phys PageTable -> Ref PageTable
+
+# PAGING CONTROL REGISTERS
+
+> bitdata CR3 /WordSize
+>   = CR3 [ phys         :: Phys PageDir
+>         | unused1=bit0 :: Bit 7
+>         | caching      :: Caching
+>         | unused2=bit0 :: Bit 3 ]
+
+> external getCR3 :: Proc CR3
+> external setCR3 :: CR3 -> Proc Unit
+> external getCR2 :: Proc VAddr         --   Read the faulting address from the cr2 register
+> external invlpg :: VAddr -> Proc Unit --   Flush TLB entries for the specified address
+
+> export setPageDir :: Ref PageDir -> Proc Unit
+> setPageDir pdir    = do let phys = pageDirToPhys pdir
+>                         cr3 <- getCR3
+>                         if phys `physNe` cr3.phys then
+>                           setCR3 cr3[phys]
+
+> bitdata PageFaultErrorCode /WordSize
+>  = PageFaultErrorCode [ unused=bit0 :: Bit 27
+>                       | id          :: Bit 1   -- 0 => data, 1 => instruction fetch
+>                       | reservedBit :: Bit 1   -- 1 => fault from reserved bit violation
+>                       | us          :: Bit 1   -- 1 => fault occurred in user mode
+>                       | wr          :: Bit 1   -- 1 => write access caused fault
+>                       | p           :: Bit 1 ] -- 0 => non-present bit; 1 => protection violation
+
+# SEGMENTATION
+
+> type Ring = Ix 4  -- protection level: 0=kernel, 3=user level
+
+> bitdata SegSelector /WordSize
+>   = SegSelector [ 0 | index :: Ix 8K | table=B0 :: Bit 1 | rpl :: Ring ]
+>     -- index: offset in table
+>     -- table: 0=GDT, 1=LDT
+>     -- rpl:   requested privilege level
+
+> kernelCS, kernelDS :: SegSelector  -- kernel code and data segments
+> kernelCS            = SegSelector [ index=ix4 | rpl=ix0 ]
+> kernelDS            = SegSelector [ index=ix5 | rpl=ix0 ]
+
+> userCS, userDS     :: SegSelector  -- user code and data segments
+> userCS              = SegSelector [ index=ix6 | rpl=ix3 ]
+> userDS              = SegSelector [ index=ix7 | rpl=ix3 ]
+
+> bufferPtrDS        :: SegSelector  -- IPC buffer pointer segment
+> bufferPtrDS         = SegSelector [ index=ix2 | rpl=ix3 ]
+
+# CPU REGISTERS
+
+## Flags
+
+> bitdata IA32Flags/WordSize
+>   = IA32Flags [ 0                     -- Reserved: FIXME allow type sig
+>               | id   = B0  :: Bit 1   -- identification flag
+>               | vip  = B0  :: Bit 1   -- virtual interrupt pending
+>               | vif  = B0  :: Bit 1   -- virtual interrupt flag
+>               | ac   = B0  :: Bit 1   -- alignment check
+>               | vm   = B0  :: Bit 1   -- virtual 8086 mode
+>               | rf   = B0  :: Bit 1   -- resume flag
+>               | B0
+>               | nt   = B0  :: Bit 1   -- nested task flag
+>               | iopl = ix0 :: Ring    -- I/O privilege level
+>               | ovf  = B0  :: Bit 1   -- overflow flag
+>               | df   = B0  :: Bit 1   -- direction flag
+>               | ifl  = B0  :: Bit 1   -- interrupt flag
+>               | tf   = B0  :: Bit 1   -- trap flag
+>               | sf   = B0  :: Bit 1   -- sign flag
+>               | zf   = B0  :: Bit 1   -- zero flag
+>               | B0
+>               | af   = B0  :: Bit 1   -- adjust flag
+>               | B0
+>               | pf   = B0  :: Bit 1   -- parity flag
+>               | B1                    -- Intel reserved; must be 1
+>               | cf   = B0  :: Bit 1 ] -- carry flag
+
+> updateFlags          :: IA32Flags -> IA32Flags -> IA32Flags
+> updateFlags flags new = flags[cf=new.cf | pf=new.pf | af=new.af | zf=new.zf | sf=new.sf | ovf=new.ovf]
+>                          -- carry, parity, adjust, zero, sign, overflow
+
+## Contexts
+
+> struct Context /72 [ regs    :: Registers         -- General purpose registers
+>                    | segregs :: SegRegs           -- Segment registers
+>                    | iframe  :: IFrame ]          -- Interrupt frame
+
+> struct IFrame /24 [ err    :: Stored Word         -- error code (if any)
+>                   | eip    :: Stored Word         -- (user-level) instruction pointer
+>                   | cs     :: Stored SegSelector  -- (user-level) code segment
+>                   | esp    :: Stored Word         -- (user-level) stack pointer
+>                   | ss     :: Stored SegSelector  -- (user-level) stack segment
+>                   | eflags :: Stored IA32Flags ]  -- (user-level) flags
+
+> struct SegRegs /16 [ ds, es, fs, gs :: Stored SegSelector ]
+
+> struct Registers /32 [ edi, esi, ebp, esp, ebx, edx, ecx, eax :: Stored Word ]
+>                      -- deriving NullInit
+
+> initRegisters :: Init Registers
+> initRegisters  = Registers [ edi <- initStored 0 | esi <- initStored 0
+>                            | ebp <- initStored 0 | esp <- initStored 0
+>                            | ebx <- initStored 0 | edx <- initStored 0
+>                            | ecx <- initStored 0 | eax <- initStored 0 ]
+
+> initUserContext :: Init Context
+> initUserContext  = initContext userCS userDS 0 flags
+>  where flags = IA32Flags [ iopl=ix3 | ifl=B1 ]
+
+> initIdleContext    :: Word -> Init Context
+> initIdleContext eip = initContext kernelCS kernelDS eip flags
+>  where flags = IA32Flags [ iopl=ix0 | ifl=B1 ]
+
+> initContext :: SegSelector -> SegSelector -> Word -> IA32Flags -> Init Context
+> initContext cs ds eip flags
+>   = Context [ regs    <- initRegisters
+>             | segregs <- SegRegs [ ds     <- initStored ds
+>                                  | es     <- initStored ds
+>                                  | fs     <- initStored ds
+>                                  | gs     <- initStored bufferPtrDS ]
+>             | iframe  <- IFrame  [ err    <- initStored 0
+>                                  | eip    <- initStored eip
+>                                  | cs     <- initStored cs
+>                                  | esp    <- initStored 0
+>                                  | ss     <- initStored ds
+>                                  | eflags <- initStored flags ] ]
+
+> external returnToUser :: Ref Context -> Proc a
+
+# FLOATING POINT STATE
+
+> struct FPUState /512 [ fpustate :: Pad 512 (Stored Byte) ]
+>        aligned 16
+>        -- deriving NoInit
+
+> external fxsave     :: Ref FPUState -> Proc Unit -- save the FPU state to the specified memory block
+> external fxrstor    :: Ref FPUState -> Proc Unit -- restore the FPU state from the specified memory
+> external finit      :: Proc Unit                 -- initialize the FPU state (registers)
+> external fpuEnable  :: Proc Unit                 -- enable the use of FPU state registers
+> external fpuDisable :: Proc Unit                 -- disable the use of FPU state registers
+
+# IO PORTS
+
+Placeholders for the real definitions:
+
+> type PortBits = 16
+> type Port     = Bit PortBits
+
+> external in8,  in16,  in32  :: Port -> Proc Word
+> external out8, out16, out32 :: Port -> Word -> Proc Unit
+
+-----------------------
