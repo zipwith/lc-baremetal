@@ -1,0 +1,123 @@
+This note attempts to explain a fairly recent addition to the LC
+and MIL languages in mil-tools that is used in significant ways
+in the examples in this repository.
+
+In general, mil-tools allows a program to use "external"
+definitions to refer to items that are used but not defined
+within the program itself.  The following example introduces the
+name for a function and specifies a type for that function but
+does not provide any form of definition or implementation:
+
+    external putchar :: Char -> Proc Unit
+
+In practice, the actual code for this putchar function might be
+written in a different language and/or separately compiled into
+an object file that can be linked in to form a complete working
+program.  Every use of an external definition like has the
+potential to compromise type safety of the enclosing program:
+there is no way, for example, for mil-tools to determine whether
+the specified type properly captures the behavior of the
+external code.  As such, all external definitions in a program
+must be carefully scrutinized to ensure that they are valid.
+
+The current implementation of mil-tools also supports some other
+forms of external definition:
+
+- `external name {extName} :: type` is used in situations where
+  we want to use an external item called `extName`, but refer to
+  it in LC or MIL code by the name `name`.
+
+- `external name {genName params ...} :: type` introduces a value
+  with the specified `name` and `type`, but relies on a custom
+  code generator, built in to the compiler and identified by the
+  `genName` label, to produce a suitable implementation.  Each
+  generator expects one or more type parameters, which are used to
+  drive the code generation process (that process may also fail if
+  the parameters are invalid, out of range, etc.)  As an example,
+  the following definition introduces a definition for the bitwise
+  `not` operator, specifically for values of type `Bit 3`:
+
+    external not3 {primBitNot 3} :: Bit 3 -> Bit 3
+
+  The name `primBitNot` is used here to identify the appropriate
+  code code generator (a full list of the available code
+  generators can be obtained by running `milc -e`); this
+  particular code generator requires a single parameter (`3` in
+  this example), which specifies the bit vector width.  In fact,
+  it is also permitted to use type variables as type parameters,
+  so long as they also appear in the type on the right of the
+  `::` operator.  For example, the following definition introduces
+  a polymorphic `not` operator that can be used with any valid
+  bit vector width `w`:
+
+    external not {primBitNot w} :: Bit w -> Bit w
+
+  Conceptually, we can think of the values defined by external
+  generators as a (potentially infinite) family of primitives or
+  "library functions" that are built in to the compiler.  The
+  extent to which we can trust that they are valid is largely a
+  function of whatever trust or confidence we have in the
+  correctness of the mil-tools implementation, and it is possible
+  for a buggy generator to produce an incorrect implementation.
+  Note, however, that the generated code will still be subjected
+  to type checking, which may help to detect or prevent some
+  errors in generator implementations.
+
+- `external f = g :: type` declares an external symbol `f` that
+  can be used with the given `type` in the rest of the LC or MIL
+  program.  In addition, however, this form of definition also
+  specifies an implementation for `f`, represented by the
+  identifier `g` in this example, whose definition should be
+  provided elsewhere in the program.  In the early stages of the
+  compilation process, `g` is treated as a dependency of `f` (so a
+  program that depends on `f` in some way will also depend on
+  `g`), but there is no deeper reliance on the relationship
+  between these two items.  In the representation transformation
+  part of the compiler (i.e., using an "r" pass), the current
+  program will be rewritten to use low-level representations in
+  place of the original high-level types.  For example, this is
+  the point at which types like `Ref (Stored Word)` and `Bit 32`
+  will be rewritten as `Word`, with corresponding rewrites to all
+  of the operations on those types.  As part of this process,
+  mil-tools will also replace any uses of the external symbol `f`
+  with its implementation `g`.  An important detail here is that
+  it is not necessary for `f` and `g` to have the same types in
+  the original source program, so long as their rewritten types
+  after representation transformation are equivalent.
+
+  As an example, mil-tools/lib/string.llc includes an external
+  declaration for a `nextChar` function that is intended to be
+  used for iterating across the characters in a null-terminated
+  string:
+
+    external nextChar = nextCharImp
+        :: Ref String -> Proc (Maybe (Pair Word (Ref String)))
+
+  This definition also specifies an implementation function,
+  `nextCharImp`, that is defined elsewhere in the same file
+  as follows:
+
+    nextCharImp  :: Ref String -> Proc (Maybe (Pair Word Word))
+    ...
+
+  These two functions do not have exactly the same type (in
+  particular, they differ in the second component of the `Pair`),
+  but they do map to the same type during the representation
+  transformation phase of the compiler (because `Ref String`
+  is mapped to `Word`), and so `nextCharImp` is accepted as
+  an implementation of `nextChar`.
+
+  The `Word` type is used in `nextCharImp` to allow the use
+  of simple arithmetic operations, corresponding to a pointer
+  increment.  Of course, although there is at least some small
+  amount of consistency checking between the types of `nextChar`
+  and `nextCharImp`, this mechanism is still unsafe in general
+  because there is nothing to prevent a programmer from
+  generating a `Word` value in the latter that does not
+  correspond to a valid reference in the former.  But this
+  situation is really no different than in any of the other
+  forms of `external` definition, each of which essentially
+  creates an obligation for the developer to ensure that the
+  implementation of the external value is consistent with its
+  declaration and use in the source program.
+
