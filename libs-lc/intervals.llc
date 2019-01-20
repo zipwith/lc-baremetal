@@ -443,26 +443,27 @@ FLEXPAGES:
 
 > enumFpages :: FpageOut -> Word -> Word -> Proc Unit
 > enumFpages out lo hi
->   = if initLo < lo then return Unit else findFpage initLo
+>   = do if initLo < lo then return Unit else findFpage initLo
 >  where
 >   initLo   = pageUp lo
 >   initMask = lowBits pageBits
 >   findFpage lo
 >      = let search mask bits
->               -- Invariant: There is a valid fpage of size bits (with the
->               -- corresponding mask) at starting address lo.
->               = let newmask = (2*mask)+1 in
->                 if ((lo `and` newmask) /= 0) || (hi < (lo+newmask))
->                   then found mask bits
->                   else let newBits = bits+1 in
->                        if newBits < wordBits
->                          then search newmask newBits
->                          else found newmask newBits
->            found  mask bits = do let end = lo + mask
->                                  out Interval[lo|hi=end] bits
->                                  if end < hi then findFpage (end+1)
->                                              else return Unit
->        in if hi < (lo+initMask)
->             then return Unit
->             else search initMask pageBits
+>              -- Invariant: There is a valid fpage of size bits (with the
+>              -- corresponding mask) at starting address lo.
+>              = do let newmask = (2*mask)+1
+>                   if ((lo `and` newmask) /= 0) || (hi < (lo+newmask))
+>                     then found mask bits
+>                     else let newBits = bits+1 in
+>                          if newBits < wordBits
+>                            then search newmask newBits
+>                            else found newmask newBits
+>            found  mask bits
+>              = do let end = lo + mask
+>                   out Interval[lo|hi=end] bits
+>                   if end < hi then findFpage (end+1)
+>                               else return Unit
+>        in do if hi < (lo+initMask)
+>                then return Unit
+>                else search initMask pageBits
 

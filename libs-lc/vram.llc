@@ -1,7 +1,7 @@
 > require "core.llc"
 > require "ix.llc"
 > require "string.llc"
-> require "noinline.mil"
+> -- require "noinline.mil"
 
 On a standard PC, we can implement a simple form of output on
 the display by writing values to a region of memory known as the
@@ -117,10 +117,10 @@ row of blanks in the last line:
 
 > scroll   :: Proc Unit
 > scroll    = loop ix0
->  where loop i = noinline (case incIx i of
->                             Nothing -> clearRow i
->                             Just j  -> do copyRow j i
->                                           loop j)
+>  where loop i = do case incIx i of
+>                      Nothing -> clearRow i
+>                      Just j  -> copyRow j i
+>                                 loop j
 
 For clarity, and because they might potentially be useful in
 other settings, we present the code for clearing and copying
@@ -138,8 +138,8 @@ each character, using `putchar` to display each one, until we reach the
 end of the string:
 
 > export puts :: Ref String -> Proc Unit
-> puts s       = noinline (case<- nextChar s of
->                            Nothing -> return Unit
->                            Just p  -> putchar (fst p)
->                                       puts (snd p))
+> puts s       = case<- nextChar s of
+>                  Nothing -> return Unit
+>                  Just p  -> putchar (fst p)
+>                             puts (snd p)
 

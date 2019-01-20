@@ -9,7 +9,7 @@ screen).
 > require "ix.llc"
 > require "string.llc"
 > require "put.llc"
-> require "noinline.mil"
+> -- require "noinline.mil"
 
 BASIC DEFINITIONS FOR VIDEO RAM:
 --------------------------------

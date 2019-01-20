@@ -11,9 +11,9 @@ a given cursor:
 >                 -> (a -> Proc Unit)          -- action for each value
 >                 -> (c -> Proc Unit)          -- the main function
 > forallDo next action c
->   = case next c of
->       Nothing -> return Unit
->       Just p  -> do action (fst p)
+>   = do case next c of
+>          Nothing -> return Unit
+>          Just p  -> action (fst p)
 >                     forallDo next action (snd p)
 
 If we want to have access to a record count (or some other
@@ -24,9 +24,9 @@ a cursor, then we need to use a generalization of `forallDo`:
 >                     -> (s -> a -> Proc s)      -- action for each value
 >                     -> (s -> c -> Proc s)      -- the main function
 > forallDoWith next action s c
->   = case next c of
->       Nothing -> return s
->       Just p  -> do t <- action s (fst p)
+>   = do case next c of
+>          Nothing -> return s
+>          Just p  -> t <- action s (fst p)
 >                     forallDoWith next action t (snd p)
 
 We can use this function, for example, to turn a function
