@@ -156,6 +156,11 @@
 >     -- table: 0=GDT, 1=LDT
 >     -- rpl:   requested privilege level
 
+> external segSelectorToWord = segSelectorToWord_imp
+>   :: SegSelector -> Word
+> segSelectorToWord_imp  :: Word -> Word
+> segSelectorToWord_imp s = s
+
 > kernelCS, kernelDS :: SegSelector  -- kernel code and data segments
 > kernelCS            = SegSelector [ index=ix4 | rpl=ix0 ]
 > kernelDS            = SegSelector [ index=ix5 | rpl=ix0 ]
@@ -199,23 +204,58 @@
 > updateFlags flags new = flags[cf=new.cf | pf=new.pf | af=new.af | zf=new.zf | sf=new.sf | ovf=new.ovf]
 >                          -- carry, parity, adjust, zero, sign, overflow
 
+> external ia32FlagsToWord = ia32FlagsToWord_imp :: IA32Flags -> Word
+> ia32FlagsToWord_imp  :: Word -> Word
+> ia32FlagsToWord_imp e = e
+
 ## Contexts
 
-> struct Context /72 [ regs    :: Registers         -- General purpose registers
->                    | segregs :: SegRegs           -- Segment registers
->                    | iframe  :: IFrame ]          -- Interrupt frame
+> struct Context /72 [ regs    :: Registers          -- General purpose registers
+>                    | segregs :: SegRegs            -- Segment registers
+>                    | iframe  :: IFrame ]           -- Interrupt frame
 
-> struct IFrame /24 [ err    :: Stored Word         -- error code (if any)
->                   | eip    :: Stored Word         -- (user-level) instruction pointer
->                   | cs     :: Stored SegSelector  -- (user-level) code segment
->                   | esp    :: Stored Word         -- (user-level) stack pointer
->                   | ss     :: Stored SegSelector  -- (user-level) stack segment
->                   | eflags :: Stored IA32Flags ]  -- (user-level) flags
+> struct IFrame /24 [ err    :: Stored Word          -- error code (if any)
+>                   | eip    :: Stored Word          -- (user-level) instruction pointer
+>                   | cs     :: Stored SegSelector   -- (user-level) code segment
+>                   | eflags :: Stored IA32Flags     -- (user-level) flags
+>                   | esp    :: Stored Word          -- (user-level) stack pointer
+>                   | ss     :: Stored SegSelector ] -- (user-level) stack segment
 
 > struct SegRegs /16 [ ds, es, fs, gs :: Stored SegSelector ]
 
 > struct Registers /32 [ edi, esi, ebp, esp, ebx, edx, ecx, eax :: Stored Word ]
 >                      -- deriving NullInit
+
+> export putContext :: Ref Context -> Proc Unit
+> putContext context
+>   = do puts "General Registers:\n  "
+>        putReg "edi"      context.regs.edi
+>        putReg ", esi"    context.regs.esi
+>        putReg ", ebp"    context.regs.ebp
+>        putReg ", esp"    context.regs.esp
+>        putReg ", ebx"    context.regs.ebx
+>        putReg ", edx"    context.regs.edx
+>        putReg ", ecx"    context.regs.ecx
+>        putReg ", eax"    context.regs.eax
+>        puts "\nSegment Registers:\n  "
+>        putSeg "ds"       context.segregs.ds
+>        putSeg ", es"     context.segregs.es
+>        putSeg ", fs"     context.segregs.fs
+>        putSeg ", gs"     context.segregs.gs
+>        puts "\nFrame Registers:\n  "
+>        putReg "err"      context.iframe.err
+>        putReg ", eip"    context.iframe.eip
+>        putSeg ", cs"     context.iframe.cs
+>        putFlg ", eflags" context.iframe.eflags
+>        putReg ", esp"    context.iframe.esp
+>        putSeg ", ss"     context.iframe.ss
+>        puts "\n"
+>   where putReg n r = do w <- get r; putW n w
+>         putSeg n r = do s <- get r; putW n (segSelectorToWord s)
+>         putFlg n r = do f <- get r; putW n (ia32FlagsToWord f)
+>         putW   n w = do puts n
+>                         puts "="
+>                         putHex w
 
 > initRegisters :: Init Registers
 > initRegisters  = Registers [ edi <- initStored 0 | esi <- initStored 0
@@ -223,11 +263,11 @@
 >                            | ebx <- initStored 0 | edx <- initStored 0
 >                            | ecx <- initStored 0 | eax <- initStored 0 ]
 
-> initUserContext :: Init Context
+> export initUserContext :: Init Context
 > initUserContext  = initContext userCS userDS 0 flags
 >  where flags = IA32Flags [ iopl=ix3 | ifl=B1 ]
 
-> initIdleContext    :: Word -> Init Context
+> export initIdleContext    :: Word -> Init Context
 > initIdleContext eip = initContext kernelCS kernelDS eip flags
 >  where flags = IA32Flags [ iopl=ix0 | ifl=B1 ]
 
@@ -240,10 +280,10 @@
 >                                  | gs     <- initStored bufferPtrDS ]
 >             | iframe  <- IFrame  [ err    <- initStored 0
 >                                  | eip    <- initStored eip
+>                                  | eflags <- initStored flags
 >                                  | cs     <- initStored cs
 >                                  | esp    <- initStored 0
->                                  | ss     <- initStored ds
->                                  | eflags <- initStored flags ] ]
+>                                  | ss     <- initStored ds ] ]
 
 > external returnToUser :: Ref Context -> Proc a
 
