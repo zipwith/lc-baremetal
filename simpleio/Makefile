@@ -1,5 +1,8 @@
 include ../Makefile.common
 
+# override setting in Makefile.common
+CC = gcc -m32
+
 all:	libio.a
 
 libio.a: simpleio.o serial.o ia32-getc.o

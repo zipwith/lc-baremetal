@@ -1,7 +1,7 @@
 include ../Makefile.common
 
 # override setting in Makefile.common
-# CC = gcc -m32
+CC = gcc -m32
 
 all:	mimgload mimgmake
 
