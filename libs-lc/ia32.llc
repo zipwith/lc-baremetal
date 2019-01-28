@@ -263,9 +263,9 @@
 >                            | ebx <- initStored 0 | edx <- initStored 0
 >                            | ecx <- initStored 0 | eax <- initStored 0 ]
 
-> export initUserContext :: Init Context
-> initUserContext  = initContext userCS userDS 0 flags
->  where flags = IA32Flags [ iopl=ix3 | ifl=B1 ]
+> export initUserContext :: Bit 1 -> Init Context
+> initUserContext ifl     = initContext userCS userDS 0 flags
+>  where flags = IA32Flags [ iopl=ix3 | ifl ]
 
 > export initIdleContext    :: Word -> Init Context
 > initIdleContext eip = initContext kernelCS kernelDS eip flags

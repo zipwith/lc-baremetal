@@ -1,0 +1,79 @@
+This file contains a recreation of the LLP "example-idt" demo.
+  
+> require "wvram.llc"
+> require "mimg.llc"
+> require "cursor.llc"
+> require "ia32.llc"
+
+> external bootdata = 0x1000 :: Ref MimgBootData
+
+The program sets up a window for kernel output on the left of
+the screen (with a surrounding border), displays the bootdata,
+and then runs an external user program.
+
+> export kernel :: Proc Unit
+> kernel
+>   = do wsetAttr console (wordToByte 0x20)
+>        clearScreen
+>        puts " Protected kernel has booted!"
+>        set console.topleft.row   (wordModIx 1)
+>        set console.topleft.col   (wordModIx 1)
+>        set console.bottomright.row (wordModIx 23)
+>        set console.bottomright.col (wordModIx 49)
+>        wsetAttr console (wordToByte 0x0f)
+>        clearScreen
+>        putMimgBootData bootdata
+>        mimgHeaders bootdata >>= userHeader runUser
+> {-
+>        userEntry <- mimgHeaders bootdata >>= userHeader getEntry
+>        putHex userEntry -- userHeader putHeader headers
+>        case skip 2 nextMimgHeader headers of
+>          Nothing -> puts "Did not find user program"
+>          Just p  -> puts "Found header"
+>                     putHeader (fst p)
+> -}
+>        puts "\nHalting kernel, returning to mimgload\n"
+
+> runUser   :: Ref MimgHeader -> Proc Unit
+> runUser h  = do entry <- get h.entry
+>                 puts "user code is at 0x"
+>                 putHex entry
+>                 puts "\n"
+>                 set user.iframe.eip entry
+>                 --putContext user
+>                 switchToUser user
+>                 puts "This message shouldn't appear!\n"
+
+> area user <- initUserContext B0 :: Ref Context
+
+> external switchToUser :: Ref Context -> Proc Unit -- Void
+> --type Void :: *
+
+> getEntry  :: Ref MimgHeader -> Proc Word
+> getEntry h = get h.entry
+
+> userHeader f c
+>   = case nextMimgHeader c of
+>       Nothing -> return Unit
+>       Just p ->
+>         case nextMimgHeader (snd p) of
+>           Nothing -> return Unit
+>           Just q ->
+>             case nextMimgHeader (snd q) of
+>               Nothing -> return Unit
+>               Just r  -> f (fst r)
+
+> entrypoint unhandled :: Word -> Word -> Proc Unit
+> unhandled exc frame
+>   = do puts "Exception 0x"
+>        putHex exc
+>        puts ", frame=0x"
+>        putHex frame
+>        puts "\n"
+
+> entrypoint kputc_imp :: Proc Unit
+> kputc_imp
+>   = do get user.regs.eax >>= putchar
+>        -- puts "kputc_imp called\n"
+>        switchToUser user
+
