@@ -1,0 +1,44 @@
+> require "core.llc"
+> require "put.llc"
+
+> external inb  :: Word -> Proc Word
+> external outb :: Word -> Word -> Proc Unit
+
+> export sputchar :: Word -> Proc Unit
+> sputchar c
+>   = let put :: Word -> Proc Unit
+>         put c = do status <- inb (portcom1+5)
+>                    if (status `and` 0x60) == 0
+>                      then put c
+>                      else outb portcom1 c
+>     in do put c
+>           if c=='\n'
+>             then put '\r'
+
+> portcom1 = 0x3f8
+
+PRINTING ON THE SERIAL PORT:
+----------------------------
+
+> export sputs                       :: Ref String -> Proc Unit
+> export sputUnsigned, sputSigned    :: Putnum
+> export sputBin, sputOctal, sputHex :: Putnum
+> export sputSize                    :: Putnum
+> export sputDigitsFmt
+>   :: NZBit WordSize -- number base
+>      -> Ix MaxWidth -- maximum number of digits to display
+>      -> Ix MaxWidth -- minimum field width
+>      -> Word        -- character to use as padding
+>      -> Putnum
+
+> sputs        = hputs        sputchar
+> sputUnsigned = hputUnsigned sputchar
+> sputSigned   = hputSigned   sputchar
+> sputBin      = hputBin      sputchar
+> sputOctal    = hputOctal    sputchar
+> sputHex      = hputHex      sputchar
+> sputSize     = hputSize     sputchar
+> sputDigitsFmt base max min padchar
+>              = hputDigitsFmt base max min padchar sputchar
+
+

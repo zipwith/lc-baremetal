@@ -1,0 +1,176 @@
+Starting with the following C code in a file called "io.c":
+--------------------------------------------------------------------
+// clang -S -emit-llvm io.c
+typedef unsigned char byte;
+typedef unsigned      word;
+
+void outb(word port, word b) {
+  asm volatile("outb  %1, %0\n" : : "dN"((short)port), "a"((byte)b));
+}
+
+word inb(word port) {
+  byte b;
+  asm volatile("inb %1, %0\n" : "=a"(b) : "dN"((short)port));
+  return (word)b;
+}
+
+--------------------------------------------------------------------
+
+The resulting "io.ll" file is as follows:
+--------------------------------------------------------------------
+; ModuleID = 'io.c'
+source_filename = "io.c"
+target datalayout = "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
+target triple = "x86_64-pc-linux-gnu"
+
+; Function Attrs: noinline nounwind optnone uwtable
+define void @outb(i32, i32) #0 {
+  %3 = alloca i32, align 4
+  %4 = alloca i32, align 4
+  store i32 %0, i32* %3, align 4
+  store i32 %1, i32* %4, align 4
+  %5 = load i32, i32* %3, align 4
+  %6 = trunc i32 %5 to i16
+  %7 = load i32, i32* %4, align 4
+  %8 = trunc i32 %7 to i8
+  call void asm sideeffect "outb  $1, $0\0A", "{dx}N,{ax},~{dirflag},~{fpsr},~{flags}"(i16 %6, i8 %8) #1, !srcloc !2
+  ret void
+}
+
+; Function Attrs: noinline nounwind optnone uwtable
+define i32 @inb(i32) #0 {
+  %2 = alloca i32, align 4
+  %3 = alloca i8, align 1
+  store i32 %0, i32* %2, align 4
+  %4 = load i32, i32* %2, align 4
+  %5 = trunc i32 %4 to i16
+  %6 = call i8 asm sideeffect "inb $1, $0\0A", "={ax},{dx}N,~{dirflag},~{fpsr},~{flags}"(i16 %5) #1, !srcloc !3
+  store i8 %6, i8* %3, align 1
+  %7 = load i8, i8* %3, align 1
+  %8 = zext i8 %7 to i32
+  ret i32 %8
+}
+
+attributes #0 = { noinline nounwind optnone uwtable "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "less-precise-fpmad"="false" "no-frame-pointer-elim"="true" "no-frame-pointer-elim-non-leaf" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="false" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+fxsr,+mmx,+sse,+sse2,+x87" "unsafe-fp-math"="false" "use-soft-float"="false" }
+attributes #1 = { nounwind }
+
+!llvm.module.flags = !{!0}
+!llvm.ident = !{!1}
+
+!0 = !{i32 1, !"wchar_size", i32 4}
+!1 = !{!"clang version 6.0.0-1ubuntu2 (tags/RELEASE_600/final)"}
+!2 = !{i32 133}
+!3 = !{i32 238}
+--------------------------------------------------------------------
+
+Note all the alloca/store/load machinery that is included here as
+well as some potentially unwanted attributes (related to no-frame-pointer,
+for example --- might have been avoided if we'd specified this on the
+clang command line) and some that appear to be irrelevant in this
+context (those related to fp-math, for example).  The asm expressions
+mention {dirflag} and {fspr} as clobber items, and the text includes an
+"\0A" (newline) escape.
+
+We can now generate assembly code output using:
+
+llc -O3 -filetype=asm -march=x86 io.ll
+
+The resulting file (after trimming away some .cfi annotations and
+some comments) is as follows (in io.s):
+--------------------------------------------------------------------
+	.text
+	.file	"io.c"
+	.globl	outb                    # -- Begin function outb
+	.p2align	4, 0x90
+	.type	outb,@function
+outb:                                   # @outb
+	pushl	%ebp
+	.cfi_def_cfa_offset 8
+	.cfi_offset %ebp, -8
+	movl	%esp, %ebp
+	movl	12(%ebp), %eax
+	movl	8(%ebp), %eax
+	movl	8(%ebp), %edx
+	movl	12(%ebp), %eax
+	outb	%al, %dx
+	popl	%ebp
+	retl
+
+	.globl	inb                     # -- Begin function inb
+	.p2align	4, 0x90
+	.type	inb,@function
+inb:                                    # @inb
+	pushl	%ebp
+	movl	%esp, %ebp
+	pushl	%eax
+	movl	8(%ebp), %eax
+	movl	8(%ebp), %edx
+	inb	%dx, %al
+	movb	%al, -1(%ebp)
+	movzbl	-1(%ebp), %eax
+	addl	$4, %esp
+	popl	%ebp
+	retl
+
+	.ident	"clang version 6.0.0-1ubuntu2 (tags/RELEASE_600/final)"
+	.section	".note.GNU-stack","",@progbits
+--------------------------------------------------------------------
+
+This assembly code includes some unwanted features, including the
+use of the frame pointer (ebp) and unnecessary memory accesses,
+such as repeated loads from 8(%ebp) into the same register, and
+a store/load pair from -1(%ebp) after the inb instruction.
+
+Using the generated .ll file as a starting point, we can clean up
+the code quite significantly to obtain the following "handwritten"
+version of "io.ll":
+--------------------------------------------------------------------
+target triple = "i386-pc-linux-gnu"
+
+define void @outb(i32 %portw, i32 %bytew) #0 {
+  %port = trunc i32 %portw to i16
+  %byte = trunc i32 %bytew to i8
+  call void asm sideeffect "outb  $1, $0", "{dx}N,{ax},~{flags}"(i16 %port, i8 %byte)
+  ret void
+}
+
+define i32 @inb(i32 %portw) #0 {
+  %port = trunc i32 %portw to i16
+  %byte = call i8 asm sideeffect "inb $1, $0", "={ax},{dx}N,~{flags}"(i16 %port)
+  %bytew = zext i8 %byte to i32
+  ret i32 %bytew
+}
+
+attributes #0 = { noinline optnone "no-frame-pointer-elim"="false" "no-frame-pointer-elim-non-leaf" }
+--------------------------------------------------------------------
+
+Using "llc -O3 -filetype=asm -march=x86 io.ll" and cleaning up as before,
+we obtain the following assembly code (in "io.s"):
+--------------------------------------------------------------------
+	.text
+	.file	"io.ll"
+	.globl	outb                    # -- Begin function outb
+	.p2align	4, 0x90
+	.type	outb,@function
+outb:                                   # @outb
+	movl	8(%esp), %eax
+	movl	4(%esp), %edx
+	outb	%al, %dx
+	retl
+
+	.globl	inb                     # -- Begin function inb
+	.p2align	4, 0x90
+	.type	inb,@function
+inb:                                    # @inb
+	movl	4(%esp), %edx
+	inb	%dx, %al
+	movzbl	%al, %eax
+	retl
+
+	.section	".note.GNU-stack","",@progbits
+--------------------------------------------------------------------
+This is a significant improvement on the previous code.  Then again,
+I would really prefer to have these functions inlined and reduced to
+a single outb or inb instruction; we'll work on that next using the
+methods that Jeremiah developed with the loadcr3 example.
+

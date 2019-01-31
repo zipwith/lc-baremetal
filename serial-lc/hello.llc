@@ -1,0 +1,24 @@
+> require "serial.llc"
+
+The demo program displays two copies of a text greeting on the serial
+port:
+
+> export hello
+> hello :: Proc Unit
+> hello  = do greet
+>             greet
+
+The greeting itself is produced by writing a sequence of strings on
+the screen:
+
+> greet = do sputs "\nhhhh   hhhh\n"
+>            sputs " hh    hhh        lll lll\n"
+>            sputs " hh    hh   eeee  ll  ll   oooo\n"
+>            sputs " hhhhhhhh  ee  ee ll  ll  oo  oo\n"
+>            sputs " hh    hh eeeeeee ll  ll oo   oo\n"
+>            sputs " hh    hh  ee     ll  ll oo  oo\n"
+>            sputs "hhh   hhhh  eeee  ll  ll  oooo\n"
+>            sputs "\n"
+>            sputs "    S e r i a l   P o r t   W o r l d\n"
+>            sputs "\n          from LC and MIL\n"
+
