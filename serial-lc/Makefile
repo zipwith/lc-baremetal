@@ -14,7 +14,7 @@ QEMU      = qemu-system-i386
 # Build rules:
 
 .SUFFIXES:
-.SUFFIXES: .S .s .lc .llc .c .cc .h .o .a .iso .img .gz .cdepn .graph
+.SUFFIXES: .S .s .lc .llc .ll .c .cc .h .o .a .iso .img .gz .cdepn .graph
 
 .PHONY: all clean
 
@@ -33,7 +33,7 @@ cdrom: grub.cfg hello
 	cp hello cdrom
 	touch cdrom
 
-OBJS   = boot.o hello.o portio.o
+OBJS   = boot.o opt-combined.o
 
 hello: ${OBJS} hello.ld
 	$(LD) -T hello.ld -o hello ${OBJS} --print-map > hello.map
@@ -43,24 +43,32 @@ hello: ${OBJS} hello.ld
 boot.o: boot.s
 	$(CC) -c -o boot.o boot.s
 
-hello.o: hello.llc serial.llc
+hello.ll: hello.llc serial.llc
 	milc hello.llc -lhello.ll --32 -pcsoros -i../libs-lc \
 		--target=i386-pc-linux-gnu \
 		--llvm-main=hello \
 		--mil-main=hello
-	clang -c -m32 ${CCOPTS} -o hello.o hello.ll
 
-portio.o: portio.ll
-	clang -c -m32 -o portio.o portio.ll
+hello.bc: hello.ll
+	llvm-as -o=hello.bc hello.ll
 
-#Replace the above rule for hello.o with the following to build the
-#original version using C:
-#hello.o: hello.c
-#	$(CC) ${CCOPTS} -o hello.o -c hello.c
+portio.bc: portio.ll
+	llvm-as -o=portio.bc portio.ll
+
+combined.bc: hello.bc portio.bc
+	llvm-link -o=combined.bc hello.bc portio.bc
+
+opt-combined.bc: combined.bc
+	opt -always-inline -o=opt-combined.bc combined.bc
+
+opt-combined.o: opt-combined.bc
+	clang -c -m32 ${CCOPTS} -o opt-combined.o opt-combined.bc
+	llc -O2 -march=x86 opt-combined.bc  # for debugging/inspection of .s
 
 #----------------------------------------------------------------------------
 # tidy up after ourselves ...
 clean:
-	-rm -rf cdrom cdrom.iso hello *.o hello.ll *.lst *.map *.sym
+	-rm -rf cdrom cdrom.iso hello hello.ll opt-combined.s \
+		*.o *.bc *.lst *.map *.sym
 
 #----------------------------------------------------------------------------
