@@ -1,0 +1,10 @@
+
+> type Port = Word
+
+> external inb  :: Word -> Proc Word
+> external outb :: Word -> Word -> Proc Unit
+
+> export updatePort  :: Port -> (Word -> Word) -> Proc Unit
+> port `updatePort` f = do w <- inb port
+>                          outb port (f w)
+

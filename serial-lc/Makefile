@@ -52,11 +52,8 @@ hello.ll: hello.llc serial.llc
 hello.bc: hello.ll
 	llvm-as -o=hello.bc hello.ll
 
-portio.bc: portio.ll
-	llvm-as -o=portio.bc portio.ll
-
-combined.bc: hello.bc portio.bc
-	llvm-link -o=combined.bc hello.bc portio.bc
+combined.bc: hello.bc
+	llvm-link -o=combined.bc hello.bc ../libs-lc/portio.bc
 
 opt-combined.bc: combined.bc
 	opt -always-inline -o=opt-combined.bc combined.bc

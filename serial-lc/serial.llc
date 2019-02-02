@@ -1,8 +1,6 @@
 > require "core.llc"
 > require "put.llc"
-
-> external inb  :: Word -> Proc Word
-> external outb :: Word -> Word -> Proc Unit
+> require "portio.llc"
 
 > export sputchar :: Word -> Proc Unit
 > sputchar c
