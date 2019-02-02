@@ -50,6 +50,19 @@ and an item number:
 >                           puts "\n"
 >                           return (i+1)
 
+`advance next n c` invokes the specified `next` function
+`(n+1)` times on the given cursor `c`, returning early
+with a result of `Nothing` if any of the intermediate
+`next` steps do not produce a result:
+
+> export advance :: (c -> Maybe (Pair v c)) -> Word -> c -> Maybe (Pair v c)
+> advance next n c
+>   = if n==0
+>       then next c
+>       else case next c of
+>              Nothing -> Nothing
+>              Just p  -> advance next (n-1) (snd p)
+
 --------
 Endnotes:
 

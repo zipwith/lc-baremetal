@@ -23,15 +23,12 @@ and then runs an external user program.
 >        wsetAttr console (wordToByte 0x0f)
 >        clearScreen
 >        putMimgBootData bootdata
->        mimgHeaders bootdata >>= userHeader runUser
-> {-
->        userEntry <- mimgHeaders bootdata >>= userHeader getEntry
->        putHex userEntry -- userHeader putHeader headers
->        case skip 2 nextMimgHeader headers of
+>        c <- mimgHeaders bootdata
+>        case advance nextMimgHeader 2 c of
 >          Nothing -> puts "Did not find user program"
 >          Just p  -> puts "Found header"
 >                     putHeader (fst p)
-> -}
+>                     runUser (fst p)
 >        puts "\nHalting kernel, returning to mimgload\n"
 
 > runUser   :: Ref MimgHeader -> Proc Unit
@@ -48,20 +45,6 @@ and then runs an external user program.
 
 > external switchToUser :: Ref Context -> Proc Unit -- Void
 > --type Void :: *
-
-> getEntry  :: Ref MimgHeader -> Proc Word
-> getEntry h = get h.entry
-
-> userHeader f c
->   = case nextMimgHeader c of
->       Nothing -> return Unit
->       Just p ->
->         case nextMimgHeader (snd p) of
->           Nothing -> return Unit
->           Just q ->
->             case nextMimgHeader (snd q) of
->               Nothing -> return Unit
->               Just r  -> f (fst r)
 
 > entrypoint unhandled :: Word -> Word -> Proc Unit
 > unhandled exc frame
