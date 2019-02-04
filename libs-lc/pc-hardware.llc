@@ -1,0 +1,120 @@
+> require "ix.llc"
+> require "bit.llc"
+> require "portio.llc"
+
+This file contains basic functions for managing the PIC
+(Programable Interrupt Controller) and PIT (Programable
+Interval Timer) hardware on a standard PC compatible
+computer.
+
+For testing, it may be useful to uncomment the following:
+
+> -- entrypoint initPICs, startTimer
+
+-------------------
+Managing the Programmable Interrupt Controllers:
+
+We assume a standard configuration of two 8259A PICs with
+the output from PIC2 connected to the IR2 pin on PIC1.
+
+> bitdata IRQ = PIC1 [ B0 | ix :: Ix ByteBits ]   -- Hardware interrupts on PIC1
+>             | PIC2 [ B1 | ix :: Ix ByteBits ]   -- Hardware interrupts on PIC2
+
+Each of the two PICs are controlled by reading/writing to
+IO ports at known base addresses:
+
+> pic1port = 0x20  -- control at +0,  mask at +1
+> pic2port = 0xa0
+
+We will configure the two PICs to remap hardware IRQs 0x0-0xf
+in to the range 0x20-0x2f:
+
+> irqBase = 0x20     -- lowest hw irq number
+
+The following function can be used to send appropriate ICWs
+(initialization control words) to initialize a single PIC:
+
+> initPIC port base info init
+>   = do outb port     0x11  -- ICW1: Initialize + will be sending ICW4
+>        outb (port+1) base  -- ICW2: Interrupt vector offset
+>        outb (port+1) info  -- ICW3: Configure for two PICs
+>        outb (port+1) 0x01  -- ICW4: 8086 mode
+>        outb (port+1) init  -- OCW1: Set initial mask
+
+[Note: some sources suggest that there should be a delay between
+each output byte ... but I don't see that in the datasheet ...]
+
+The two PICs together can now be initialized as follows:
+
+> initPICs :: Proc Unit
+> initPICs
+>   = do initPIC pic1port irqBase     0x04 0xfb -- all but IRQ2 masked out
+>        initPIC pic2port (irqBase+8) 0x02 0xff
+
+Once they have been initialized, individual hardware interrupts
+for each PIC can be enabled or disabled by updating the values
+at the corresponding (base port + 1) addresses:
+
+> export enableIRQ, disableIRQ :: IRQ -> Proc Unit
+> enableIRQ  = withIRQ clearIRQBit
+> disableIRQ = withIRQ setIRQBit
+
+> withIRQ :: (Port -> Ix ByteBits -> Proc Unit) -> IRQ -> Proc Unit
+> withIRQ action irq
+>   = do case irq of
+>          PIC1 r -> action (pic1port+1) (r.ix)
+>          PIC2 r -> action (pic2port+1) (r.ix)
+
+> setIRQBit, clearIRQBit :: Port -> Ix ByteBits -> Proc Unit
+> clearIRQBit port ix     = port `updatePort` (\w -> bitClearWord w (bix ix))
+> setIRQBit port ix       = port `updatePort` (\w -> bitSetWord w (bix ix))
+
+We define an explicitly typed version of relaxIx to avoid ambiguity issues:
+
+> bix :: Ix ByteBits -> Ix WordBits
+> bix  = relaxIx
+
+> export maskAckIRQ :: IRQ -> Proc Unit
+> maskAckIRQ irq
+>   = do case irq of
+>          PIC1 r ->
+>            setIRQBit (pic1port+1) r.ix -- disable interrupt
+>            sendEOI   pic1port     r.ix -- EOI to PIC1
+>          PIC2 r ->
+>            setIRQBit (pic1port+1) r.ix -- disable interrupt
+>            sendEOI   pic2port     r.ix -- EOI to PIC2
+>            sendEOI   pic1port     ix2  -- EOI for IRQ to PIC1
+
+> sendEOI        :: Word -> Ix ByteBits -> Proc Unit
+> sendEOI port ix = outb port (0x60 `or` ixToWord ix)
+
+-------------------
+Managing the Programable Interval Timer:
+
+We assume that the output from an 8253 timer is connected to
+interrupt 0 on PIC1:
+
+> timerIRQ :: IRQ
+> timerIRQ  = PIC1 [ ix=ix0 ]
+
+We assume that the timer clock frequency is 1.193182MHz and
+that we want timer interrupts to occur 100 times per second:
+
+> hz             = 100  -- frequence of timer interrupts
+> clockFrequency = 1193182
+> pitInterval    = (clockFrequency + (hz / 2)) / hz
+
+The timer can now be configured and then the corresponding IRQ
+can be enabled, using a short sequence of outb instructions:
+
+> export startTimer :: Proc Unit
+> startTimer = do outb 0x43 0x34  -- PIT control (0x43): counter 0, 2 bytes, mode 2, binary
+>                 outb 0x40 (pitInterval `and` 255)            -- counter 0, lsb
+>                 outb 0x40 ((pitInterval `lshr` 8) `and` 255) -- counter 0, msb
+>                 enableIRQ timerIRQ
+
+NOTE: again, some sources suggest that we should include a
+delay after each of the outb instructions in the definition
+of `startTimer`.
+
+-------------------
