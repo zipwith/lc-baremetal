@@ -14,7 +14,7 @@ QEMU      = qemu-system-i386
 # Build rules:
 
 .SUFFIXES:
-.SUFFIXES: .S .s .lc .llc .ll .c .cc .h .o .a .iso .img .gz .cdepn .graph
+.SUFFIXES: .S .s .lc .llc .ll .c .cc .h .bc .o .a .iso .img .gz .cdepn .graph
 
 .PHONY: all clean
 

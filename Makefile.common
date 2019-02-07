@@ -9,7 +9,8 @@ CCINCPATH =
 QEMU      = qemu-system-i386
 
 .SUFFIXES:
-.SUFFIXES: .S .s .lc .llc .c .cc .h .o .a .iso .img .gz .cdepn .graph
+.SUFFIXES: .S .s .lc .llc .ll .c .cc .h .o .bc .a .iso .img .gz .cdepn .graph
+
 
 .PHONY: all clean
 #----------------------------------------------------------------------------
