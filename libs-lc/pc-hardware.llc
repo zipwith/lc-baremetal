@@ -46,7 +46,7 @@ each output byte ... but I don't see that in the datasheet ...]
 
 The two PICs together can now be initialized as follows:
 
-> initPICs :: Proc Unit
+> export initPICs :: Proc Unit
 > initPICs
 >   = do initPIC pic1port irqBase     0x04 0xfb -- all but IRQ2 masked out
 >        initPIC pic2port (irqBase+8) 0x02 0xff
@@ -94,8 +94,8 @@ Managing the Programable Interval Timer:
 We assume that the output from an 8253 timer is connected to
 interrupt 0 on PIC1:
 
-> timerIRQ :: IRQ
-> timerIRQ  = PIC1 [ ix=ix0 ]
+> export timerIRQ :: IRQ
+> timerIRQ         = PIC1 [ ix=ix0 ]
 
 We assume that the timer clock frequency is 1.193182MHz and
 that we want timer interrupts to occur 100 times per second:
