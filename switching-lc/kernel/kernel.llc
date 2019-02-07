@@ -1,0 +1,109 @@
+This file contains a LC solution to the LLP context switching lab.
+  
+> require "wvram.llc"
+> require "mimg.llc"
+> require "cursor.llc"
+> require "ia32.llc"
+> require "pc-hardware.llc"
+
+> external bootdata = 0x1000 :: Ref MimgBootData
+
+The program sets up a window for kernel output on the left of
+the screen (with a surrounding border), displays the bootdata,
+and then uses bootdata headers to locate and runs two external
+user programs (which, for this demo, have been crafted to run
+in separate smaller windows on the right side of the screen).
+The program configures the system clock to provide interrupts
+100 times a second, and automatically context switches between
+the two user programs.
+
+> export kernel :: Proc Unit
+> kernel
+>   = do wsetAttr console (wordToByte 0x20)
+>        clearScreen
+>        puts " Context switching kernel has booted!"
+>        set console.topleft.row   (wordModIx 1)
+>        set console.topleft.col   (wordModIx 1)
+>        set console.bottomright.row (wordModIx 23)
+>        set console.bottomright.col (wordModIx 45)
+>        wsetAttr console (wordToByte 0x0f)
+>        clearScreen
+>        putMimgBootData bootdata
+>        c <- mimgHeaders bootdata
+>        case advance nextMimgHeader 2 c of
+>          Nothing -> puts "Did not find first user program\n"
+>          Just p  -> puts "Found header for first user program:\n"
+>                     putHeader (fst p)
+>                     puts "\n"
+>                     case nextMimgHeader (snd p) of
+>                       Nothing -> puts "Did not find second user program\n"
+>                       Just q  -> puts "Found header for second user program:\n"
+>                                  putHeader (fst q)
+>                                  puts "\n"
+>                                  runTwo (fst p) (fst q)
+>        puts "\nHalting kernel, returning to mimgload\n"
+
+> runTwo :: Ref MimgHeader -> Ref MimgHeader -> Proc Unit
+> runTwo top bot
+>   = do initUser ix0 top
+>        initUser ix1 bot
+>        set current ix0
+>        initPICs
+>        startTimer
+>        returnToCurrent
+
+> initUser :: Ix N -> Ref MimgHeader -> Proc Unit
+> initUser ix h
+>   = do entry <- get h.entry
+>        puts "user code is at 0x"
+>        putHex entry
+>        puts "\n"
+>        set (users @ ix).iframe.eip entry
+
+> type N = 2 -- Number of user processes
+> area users   <- initArray (\ix -> initUserContext B1) :: Ref (Array N Context)
+> area current <- initStored ix0 :: Ref (Stored (Ix N))
+
+> external returnTo :: Ref Context -> Proc Unit -- Void
+
+> getUser :: Proc (Ref Context)
+> getUser  = do curr <- get current
+>               return (users @ curr)
+
+> returnToCurrent :: Proc Unit
+> returnToCurrent  = getUser >>= returnTo
+
+> entrypoint unhandled :: Word -> Word -> Proc Unit
+> unhandled exc frame
+>   = do puts "Exception 0x"
+>        putHex exc
+>        puts ", frame=0x"
+>        putHex frame
+>        puts "\n"
+
+> entrypoint timerInterrupt :: Proc Unit
+> timerInterrupt
+>   = do maskAckIRQ timerIRQ
+>        enableIRQ  timerIRQ
+>        t <- get ticks
+>        set ticks (t+1)
+>        if (t`and`15)==0
+>          then update current roundRobin
+>        returnToCurrent
+
+> roundRobin  :: Ix N -> Ix N
+> roundRobin i = case incIx i of
+>                  Nothing -> ix0
+>                  Just j  -> j
+
+> area ticks <- initStored 1 :: Ref (Stored Word)
+
+> entrypoint kputc :: Proc Unit
+> kputc = do user <- getUser
+>            get user.regs.eax >>= putchar
+>            -- puts "kputc_imp called\n"
+>            returnTo user
+
+> entrypoint yield :: Proc Unit
+> yield = returnToCurrent
+
