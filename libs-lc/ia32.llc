@@ -303,10 +303,10 @@
 
 Placeholders for the real definitions:
 
-> type PortBits = 16
-> type Port     = Bit PortBits
+  type PortBits = 16
+  type Port     = Bit PortBits
 
-> external in8,  in16,  in32  :: Port -> Proc Word
-> external out8, out16, out32 :: Port -> Word -> Proc Unit
+  external in8,  in16,  in32  :: Port -> Proc Word
+  external out8, out16, out32 :: Port -> Word -> Proc Unit
 
 -----------------------
