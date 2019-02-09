@@ -83,22 +83,24 @@ setting the `current` position to coincide with the `topleft`
 coordinate:
 
 > export window
-> window  :: Ix NumRows -> Ix NumCols ->     -- top    left
->              Ix NumRows -> Ix NumCols ->   -- bottom right
->                Init Window
-> window top left bottom right
->   = Window [ topleft | bottomright | current <- topleft | attr ]
+> window :: Ix NumRows -> Ix NumCols ->     -- top    left
+>             Ix NumRows -> Ix NumCols ->   -- bottom right
+>               Byte ->                     -- video attribute
+>                 Init Window
+> window top left bottom right attr
+>   = Window [ topleft | bottomright
+>            | current <- topleft
+>            | attr <- initStored attr ]
 >     where topleft     = Coord [ row <- initStored top
 >                               | col <- initStored left  ]
 >           bottomright = Coord [ row <- initStored bottom
 >                               | col <- initStored right ]
->           attr        = initStored defAttr
 
 For example, we can described a `console` window that covers the
 full screen using the following definition:
 
 > export console
-> area console <- window ix0 ix0 maxBound maxBound :: Ref Window
+> area console <- window ix0 ix0 maxBound maxBound defAttr :: Ref Window
 
 In practice, we will expect the values in each `Window` to
 satisfy `top <= bottom` and `left <= right`.  In cases where
