@@ -5,6 +5,7 @@ This file contains a LC solution to the LLP context switching lab.
 > require "cursor.llc"
 > require "ia32.llc"
 > require "pc-hardware.llc"
+> require "widgets.llc"
 
 > external bootdata = 0x1000 :: Ref MimgBootData
 
@@ -87,8 +88,11 @@ the two user programs.
 >        enableIRQ  timerIRQ
 >        t <- get ticks
 >        set ticks (t+1)
->        if (t`and`15)==0
+>        if (t `and` 3)==0
+>          then bar
+>        if (t `and` 15)==0
 >          then update current roundRobin
+>               spin
 >        returnToCurrent
 
 > roundRobin  :: Ix N -> Ix N
@@ -97,6 +101,8 @@ the two user programs.
 >                  Just j  -> j
 
 > area ticks <- initStored 1 :: Ref (Stored Word)
+
+System calls and interrupt/exception handlers:
 
 > entrypoint kputc :: Proc Unit
 > kputc = do user <- getUser

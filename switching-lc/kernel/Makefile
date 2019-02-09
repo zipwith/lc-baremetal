@@ -15,7 +15,7 @@ kernel: ${KOBJS} kernel.ld
 init.o: init.s
 	$(CC) -c -o init.o init.s
 
-kernel.ll: kernel.llc
+kernel.ll: kernel.llc widgets.llc
 	milc kernel.llc -lkernel.ll --32 -pcsosrsos -i../../libs-lc \
 		-mkernel.mil \
 		--target=i386-pc-linux-gnu \

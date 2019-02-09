@@ -1,0 +1,49 @@
+> require "core.llc"
+> require "ix.llc"
+> require "wvram.llc"
+
+The spinner:
+
+> area spinpos <- initStored ix0 :: Ref (Stored (Ix 4))
+> area spinner <- initArray (\ix -> initStored (wordToByte (spinChar ix))) :: Ref (Array 4 (Stored Byte))
+
+> spinChar  :: Ix 4 -> Word
+> spinChar x = if x `ltIx` ix2 then
+>                if x `eqIx` ix0 then '-' else '\\'
+>              else
+>                if x `eqIx` ix2 then '|' else '/'
+
+> export spin :: Proc Unit
+> spin = do p <- get spinpos
+>           c <- get (spinner @ p)
+>           set spinpos (wordModIx (1 + ixToWord p))
+>           let r = (vram @ ix0) @ wordModIx 79
+>           o <- get r
+>           set r o[char=c]
+
+The "Knight Rider Bar":
+
+> area pos <- initStored (wordModIx 55) :: Ref (Stored (Ix NumCols))
+> area dir <- initStored True           :: Ref (Stored Bool)
+
+> barmin = wordModIx 46 :: Ix NumCols
+> barmax = wordModIx 68 :: Ix NumCols
+
+> export bar :: Proc Unit
+> bar = do p <- get pos
+>          upd p ' '
+>          if<- get dir
+>            then case ltInc p barmax of
+>                   Just j  -> upd j '>'
+>                              set pos j
+>                   Nothing -> upd p '|'
+>                              set dir False
+>            else case ltDec barmin p of
+>                   Just i  -> upd i '<'
+>                              set pos i
+>                   Nothing -> upd p '|'
+>                              set dir True
+> upd p c = do let r = (vram @ ix0) @ p
+>              oc <- get r
+>              set r oc[char=wordToByte c]
+
