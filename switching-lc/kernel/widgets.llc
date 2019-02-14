@@ -9,7 +9,7 @@ A clock display:
 > clockRight             = wordModIx 77
 
 > export clock  :: Word -> Proc Unit
-> clock t = clockLoop clockRight (t * 4096)
+> clock t = clockLoop clockRight t
 
 > clockLoop :: Ix NumCols -> Word -> Proc Unit
 > clockLoop col t
