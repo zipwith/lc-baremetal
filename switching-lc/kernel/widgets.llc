@@ -2,6 +2,23 @@
 > require "ix.llc"
 > require "wvram.llc"
 
+A clock display:
+
+> clockLeft, clockRight :: Ix NumCols
+> clockLeft              = wordModIx 70
+> clockRight             = wordModIx 77
+
+> export clock  :: Word -> Proc Unit
+> clock t = clockLoop clockRight (t * 4096)
+
+> clockLoop :: Ix NumCols -> Word -> Proc Unit
+> clockLoop col t
+>   = do update ((vram @ ix0) @ col)
+>               (\c -> (c::Char)[char=digitToByte (t `and` 15)])
+>        case clockLeft `ltDec` col of
+>          Just j  -> clockLoop j (t `lshr` 4)
+>          Nothing -> return Unit
+
 The spinner:
 
 > area spinpos <- initStored ix0 :: Ref (Stored (Ix 4))

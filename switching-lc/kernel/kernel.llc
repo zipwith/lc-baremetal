@@ -86,6 +86,7 @@ the two user programs.
 >        enableIRQ  timerIRQ
 >        t <- get ticks
 >        set ticks (t+1)
+>        clock t
 >        if (t `and` 3)==0
 >          then bar
 >        if (t `and` 15)==0
