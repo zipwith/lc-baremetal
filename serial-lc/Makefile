@@ -43,7 +43,7 @@ hello: ${OBJS} hello.ld
 boot.o: boot.s
 	$(CC) -c -o boot.o boot.s
 
-hello.ll: hello.llc serial.llc
+hello.ll: hello.llc
 	milc hello.llc -lhello.ll --32 -pcsoros -i../libs-lc \
 		--target=i386-pc-linux-gnu \
 		--llvm-main=hello \
