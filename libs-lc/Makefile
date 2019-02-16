@@ -6,7 +6,7 @@
 
 .PHONY: all clean
 
-BCS	= portio.bc ia32.bc
+BCS	= ia32.bc
 
 all:	$(BCS)
 

@@ -26,7 +26,7 @@ kernel.bc: kernel.ll
 	llvm-as -o=kernel.bc kernel.ll
 
 combined.bc: kernel.bc
-	llvm-link -o=combined.bc kernel.bc ../../libs-lc/portio.bc
+	llvm-link -o=combined.bc kernel.bc ../../libs-lc/ia32.bc
 
 opt-combined.bc: combined.bc
 	opt -always-inline -o=opt-combined.bc combined.bc

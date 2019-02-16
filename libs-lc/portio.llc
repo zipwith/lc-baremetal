@@ -1,3 +1,7 @@
+-----------------------
+# IO PORTS
+
+[Link with ia32.bc for implementations.]
 
 > type Port = Word
 
@@ -8,3 +12,4 @@
 > port `updatePort` f = do w <- inb port
 >                          outb port (f w)
 
+-----------------------

@@ -53,7 +53,7 @@ hello.bc: hello.ll
 	llvm-as -o=hello.bc hello.ll
 
 combined.bc: hello.bc
-	llvm-link -o=combined.bc hello.bc ../libs-lc/portio.bc
+	llvm-link -o=combined.bc hello.bc ../libs-lc/ia32.bc
 
 opt-combined.bc: combined.bc
 	opt -always-inline -o=opt-combined.bc combined.bc

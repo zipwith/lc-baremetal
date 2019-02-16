@@ -2,6 +2,7 @@
 > require "bit.llc"
 > require "ix.llc"
 
+-----------------------
 # RELATING PHYSICAL AND VIRTUAL MEMORY ADDRESSES
 
 > external physEq=physEqImp, physNe=physNeImp :: Phys a -> Phys a -> Bool
@@ -20,6 +21,7 @@
 > kernelSpace  :: Word
 > kernelSpace   = 0xc000_0000
 
+-----------------------
 # USER-LEVEL VIRTUAL MEMORY ADDRESSES
 
 > struct SuperPage /4M
@@ -39,10 +41,13 @@
 > type KernelSuperPages  = 256 -- Number of superpages in the kernel space address range
 > type KernelSuperPages1 = 255 -- should be KernelSuperPages-1
 
+-----------------------
 # PAGE DIRECTORIES AND PAGE TABLES
 
+-----------------------
 ## Page Directory Layout
 
+-----------------------
 ### User-Space Page Directory Entries
 
 > bitdata PDE /WordSize                                -- Defines format for Page Directory Entries
@@ -78,6 +83,7 @@
 > kernelOnly     :: PagingAttrs
 > kernelOnly      = PagingAttrs[us=False | rw=True]    -- kernel only, write allowed
 
+-----------------------
 ### Kernel-Space Page Directory Entries
 
 > bitdata KPDE /WordSize   -- Kernel Page Directory Entries, a variant of SuperPagePDE
@@ -89,6 +95,7 @@
 >         | attrs = kernelOnly :: PagingAttrs   -- paging attributes
 >         | B1 ]
 
+-----------------------
 ### Page Directory Layout
 
 > struct PageDir /4K [ pdes      :: Array UserSuperPages    (Stored PDE)
@@ -123,6 +130,7 @@
 > initPageTable :: Init PageTable
 > initPageTable  = PageTable [ ptes <- initArray (\ix -> initStored UnmappedPTE[]) ]
 
+-----------------------
 # PAGING CONTROL REGISTERS
 
 > bitdata CR3 /WordSize
@@ -150,6 +158,7 @@
 >                       | wr          :: Bit 1   -- 1 => write access caused fault
 >                       | p           :: Bit 1 ] -- 0 => non-present bit; 1 => protection violation
 
+-----------------------
 # SEGMENTATION
 
 > type Ring = Ix 4  -- protection level: 0=kernel, 3=user level
@@ -176,6 +185,7 @@
 > bufferPtrDS        :: SegSelector  -- IPC buffer pointer segment
 > bufferPtrDS         = SegSelector [ index=ix2 | rpl=ix3 ]
 
+-----------------------
 # CPU REGISTERS
 
 ## Flags
@@ -212,6 +222,7 @@
 > ia32FlagsToWord_imp  :: Word -> Word
 > ia32FlagsToWord_imp e = e
 
+-----------------------
 ## Contexts
 
 > struct Context /72 [ regs    :: Registers          -- General purpose registers
@@ -291,6 +302,7 @@
 
 > external returnToUser :: Ref Context -> Proc a
 
+-----------------------
 # FLOATING POINT STATE
 
 > struct FPUState /512 [ fpustate :: Pad 512 (Stored Byte) ]
@@ -302,15 +314,5 @@
 > external finit      :: Proc Unit                 -- initialize the FPU state (registers)
 > external fpuEnable  :: Proc Unit                 -- enable the use of FPU state registers
 > external fpuDisable :: Proc Unit                 -- disable the use of FPU state registers
-
-# IO PORTS
-
-Placeholders for the real definitions:
-
-  type PortBits = 16
-  type Port     = Bit PortBits
-
-  external in8,  in16,  in32  :: Port -> Proc Word
-  external out8, out16, out32 :: Port -> Word -> Proc Unit
 
 -----------------------
