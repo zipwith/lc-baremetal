@@ -2,7 +2,23 @@
 > require "bit.llc"
 > require "ix.llc"
 
-> external physNe :: Phys a -> Phys a -> Bool
+# RELATING PHYSICAL AND VIRTUAL MEMORY ADDRESSES
+
+> external physEq=physEqImp, physNe=physNeImp :: Phys a -> Phys a -> Bool
+> physEqImp = (==) :: Word -> Word -> Bool
+> physNeImp = (/=) :: Word -> Word -> Bool
+
+> external toPhys=toPhysImp     :: Ref a -> Phys a
+> external fromPhys=fromPhysImp :: Phys a -> Ref a
+
+> fromPhysImp  :: Word -> Word
+> fromPhysImp x = x + kernelSpace
+
+> toPhysImp    :: Word -> Word
+> toPhysImp x   = x - kernelSpace
+
+> kernelSpace  :: Word
+> kernelSpace   = 0xc000_0000
 
 # USER-LEVEL VIRTUAL MEMORY ADDRESSES
 
@@ -10,15 +26,9 @@
 >   [ bytes :: Array 4M (Stored Byte) ]
 >   aligned 4M
 
-> external superPageToPhys :: Ref  SuperPage -> Phys SuperPage
-> external physToSuperPage :: Phys SuperPage -> Ref SuperPage
-
 > struct Page /4K
 >   [ bytes :: Array 4K (Stored Byte) ]
 >   aligned 4K
-
-> external pageToPhys      :: Ref  Page      -> Phys Page
-> external physToPage      :: Phys Page      -> Ref Page
 
 > bitdata VAddr /WordSize = VAddr [ vp :: VPage | offset :: Bit 12 ]
 >                           -- deriving Eq, ToBits
@@ -81,9 +91,6 @@
 
 ### Page Directory Layout
 
-> external pageDirToPhys   :: Ref  PageDir   -> Phys PageDir
-> external physToPageDir   :: Phys PageDir   -> Ref PageDir
-
 > struct PageDir /4K [ pdes      :: Array UserSuperPages    (Stored PDE)
 >                    | kpdes     :: Array KernelSuperPages1 (Stored KPDE)
 >                    | bufferPDE :: Stored PDE ] 
@@ -116,9 +123,6 @@
 > initPageTable :: Init PageTable
 > initPageTable  = PageTable [ ptes <- initArray (\ix -> initStored UnmappedPTE[]) ]
 
-> external pageTableToPhys :: Ref  PageTable -> Phys PageTable
-> external physToPageTable :: Phys PageTable -> Ref PageTable
-
 # PAGING CONTROL REGISTERS
 
 > bitdata CR3 /WordSize
@@ -133,7 +137,7 @@
 > external invlpg :: VAddr -> Proc Unit --   Flush TLB entries for the specified address
 
 > export setPageDir :: Ref PageDir -> Proc Unit
-> setPageDir pdir    = do let phys = pageDirToPhys pdir
+> setPageDir pdir    = do let phys = toPhys pdir
 >                         cr3 <- getCR3
 >                         if phys `physNe` cr3.phys then
 >                           setCR3 cr3[phys]
