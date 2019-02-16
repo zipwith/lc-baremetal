@@ -131,10 +131,10 @@
 >         | caching      :: Caching
 >         | unused2=bit0 :: Bit 3 ]
 
-> external getCR3 :: Proc CR3
-> external setCR3 :: CR3 -> Proc Unit
-> external getCR2 :: Proc VAddr         --   Read the faulting address from the cr2 register
-> external invlpg :: VAddr -> Proc Unit --   Flush TLB entries for the specified address
+> external getCR2 :: Proc VAddr          -- Read the faulting address from the cr2 register
+> external getCR3 :: Proc CR3            -- Read the page directory register
+> external setCR3 :: CR3 -> Proc Unit    -- Write the page directory register
+> external invlpg :: Ref a -> Proc Unit  -- Flush TLB entries for the specified address
 
 > export setPageDir :: Ref PageDir -> Proc Unit
 > setPageDir pdir    = do let phys = toPhys pdir

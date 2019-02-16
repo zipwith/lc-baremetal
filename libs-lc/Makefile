@@ -2,18 +2,20 @@
 # Build rules:
 
 .SUFFIXES:
-.SUFFIXES: .S .s .lc .llc .ll .c .cc .h .o .a .iso .img .gz .cdepn .graph
+.SUFFIXES: .S .s .lc .llc .ll .c .cc .h .bc .o .a .iso .img .gz .cdepn .graph
 
 .PHONY: all clean
 
-all:	portio.bc
+BCS	= portio.bc ia32.bc
 
-portio.bc: portio.ll
-	llvm-as -o=portio.bc portio.ll
+all:	$(BCS)
+
+.ll.bc:
+	llvm-as -o=$*.bc $*.ll
 
 #----------------------------------------------------------------------------
 # tidy up after ourselves ...
 clean:
-	-rm -rf portio.bc
+	-rm -rf ${BCS}
 
 #----------------------------------------------------------------------------
