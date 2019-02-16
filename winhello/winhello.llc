@@ -6,45 +6,40 @@ on a PC:
 
 We declare four text windows, one for each corner of the screen:
 
-> area topleft   <- wix  0  0 11 39 :: Ref Window
-> area topright  <- wix  0 40 11 79 :: Ref Window
-> area botleft   <- wix 12  0 23 39 :: Ref Window
-> area botright  <- wix 12 40 23 79 :: Ref Window
+> area topleft  <- wix  0  0 11 39 X07 :: Ref Window -- white on black (plain)
+> area topright <- wix  0 40 11 79 X1e :: Ref Window -- yellow on blue (Sweden!)
+> area botleft  <- wix 12  0 23 39 X20 :: Ref Window -- black on green (PSU!)
+> area botright <- wix 12 40 23 79 X4d :: Ref Window -- magenta on red (Uggh!)
 
 For convenience, we declare a custom initializer that applies modIx
 to each of the specified coordinates:
 
-> wix t l b r = window (wordModIx t) (wordModIx l) (wordModIx b) (wordModIx r)
+> wix t l b r attr = window (wordModIx t) (wordModIx l)  -- top left
+>                           (wordModIx b) (wordModIx r)  -- bottom right
+>                           attr                         -- video attribute
 
 Our new demo program clears the (full) screen and then writes different output
 to each of the four windows:
 
-> export hello
-> hello :: Proc Unit
-> hello  = do clearScreen
->
->             winit topleft X07   -- white text, black background
+> export hello :: Proc Unit
+> hello  = do clearWindow topleft
 >             greet topleft
 >
->             winit botright X1e  -- yellow text, blue background (Sweden!)
+>             clearWindow botright
 >             greet botright
 >
->             winit topright X20  -- black text, green background (PSU!)
+>             clearWindow topright
 >             wputs topright "6 * 7 = "
 >             wputHex topright (6 * 7)
 >             wputchar topright '\n'
 >
->             winit botleft X4d   -- light magenta text, red background (Uggh!)
+>             clearWindow botleft
 >             facTable botleft 20
 
-> winit    :: Ref Window -> Byte -> Proc Unit
-> winit w a = do wsetAttr w a
->                clearWindow w
-
 > facTable w n = loop 0 1
->  where loop i f = if i >= n
->                     then return Unit
->                     else do wputs w "fac("
+>  where loop i f = do if i >= n
+>                        then return Unit
+>                        else wputs w "fac("
 >                             wputDigitsFmt w nz10 maxBound ix2 ' ' i
 >                             wputs w ") = "
 >                             wputDigitsFmt w nz10 ix5 ix4 ' ' f
