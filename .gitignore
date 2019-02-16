@@ -4,4 +4,5 @@
 *.iso
 *.map
 cdrom/
+local/
 .DS_Store
