@@ -5,7 +5,7 @@ programs written using LC and mil-tools.
 
 Most of these examples are based on original implementations
 that were written in C as demos or exercise materials for the
-[Languages and Low-Level Programming Course (LLP).](http://web.cecs.pdx.edu/~mpj/llp/).
+[Languages and Low-Level Programming Course (LLP)](http://web.cecs.pdx.edu/~mpj/llp/).
 In particular, you can find a detailed set of instructions for
 building a virtual machine that is suitable for running these
 programs by [clicking here](http://web.cecs.pdx.edu/~mpj/llp/vminstall/),
@@ -26,6 +26,24 @@ for handwritten code.  Nevertheless, we hope that the resulting
 code will be relatively easy to understand, and that it will
 help to give some indication of what will ultimately be possible
 using Habit.
+
+## Installation Note:
+
+The code in this repository assumes that you have installed
+`mil-tools` and added a copy of the `milc` script to a suitable
+folder on your path (for example, `~/bin/milc` or `~/local/bin/milc`).
+In addition, for the purposes of compiling these programs, you will
+need to modify that script to ensure that the `mil-tools` library
+folder (i.e., `mil-tools/lib`) is referenced when you run `milc`.
+This can be accomplished by editing the script file so that the
+second line matches the following pattern:
+
+    java -jar MILPATH/mil-tools.jar -iMILPATH/lib $*
+
+where both occurrences of `MILPATH` are replaced with an absolute
+path for your `mil-tools` folder.
+
+## Overview of Included Programs:
 
 The current set of demos in this repository includes:
 
@@ -122,6 +140,15 @@ libs-lc include:
 * `pc-hardware.llc`: Functions for working with the programmable
   interrupt controllers (PICs) and the programmable interval
   timer (PIT) on a standard PC platform.
+
+* `serial.llc`: Functions for printing single characters,
+   null-terminated strings, and numeric values on the COM1
+   serial port.  When these demos are executed with the
+   provided `Makefile` settings in `QEMU`, all output that
+   is "printed on the serial port" will actually be displayed
+   in the main terminal window.  This can be useful for viewing
+   and capturing program output, especially when there is too
+   much to fit on a single video RAM screen.
 
 * `intervals.llc`: Code for working with sets of intervals (that
   typically represent ranges of available or reserved memory
