@@ -23,8 +23,8 @@ the two user programs.
 >   = do wsetAttr console (wordToByte 0x20)
 >        clearScreen
 >        puts " Context switching kernel has booted!"
->        console `reInit` window (wordModIx 1)  (wordModIx 1)
->                                (wordModIx 23) (wordModIx 45)
+>        console `reInit` window (modIx 1)  (modIx 1)
+>                                (modIx 23) (modIx 45)
 >                                (wordToByte 0x0f)
 >        clearScreen
 >        putMimgBootData bootdata

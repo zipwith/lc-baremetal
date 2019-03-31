@@ -142,14 +142,14 @@ value v.
 > separate    :: Interval -> Interval -> Bool
 > separate i j = strictlyBefore i j || strictlyBefore j i
 >  where strictlyBefore    :: Interval -> Interval -> Bool
->        strictlyBefore i j = i.hi << j.lo
->        x << y             = (x < y) && ((x+1) < y)
+>        strictlyBefore i j = i.hi !< j.lo
+>        x !< y             = (x < y) && ((x+1) < y)
 
 The structure of this definition clearly mirrors the
 previous definition for disjoint, but it is written in terms
-of a new "strictly less than" operator, written as <<, in
+of a new "strictly less than" operator, written as !<, in
 place of the conventional less than operator.  At first
-glance, the definition of << seems a little odd: why would
+glance, the definition of !< seems a little odd: why would
 we use a conjunction here when the second conjunct,
 ((x+1)<y), clearly implies the first?  The complication that
 we are addressing is the possibility for overflow with
@@ -161,7 +161,7 @@ obvious fact that x is less than y, but also that x is not
 the largest possible unsigned integer, ensuring that the
 subsequent calculation of x+1 will not cause an overflow.
 Would it be better to rewrite the right hand side in the
-definition of << as (x/=maxBound && (x+1)<=y)?  Perhaps, but
+definition of !< as (x/=maxBound && (x+1)<=y)?  Perhaps, but
 the formulation we have used avoids the need for an awkward
 constant; is arguably just as clear (given that
 understanding either form requires us to be thinking
@@ -230,7 +230,7 @@ determine the `BitSize` of the resulting values and/or the
 >       Empty  -> puts "Interval set is empty\n"
 >       Last l -> do puts "Interval set contains:\n"
 >                    loop ix0 l.n
->                    putUnsigned (1 + ixToWord l.n)
+>                    putUnsigned (1 + ixToBit l.n)
 >                    puts " intervals\n"
 >  where
 >   loop i n

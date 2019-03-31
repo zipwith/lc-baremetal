@@ -14,9 +14,9 @@ We declare four text windows, one for each corner of the screen:
 For convenience, we declare a custom initializer that applies modIx
 to each of the specified coordinates:
 
-> wix t l b r attr = window (wordModIx t) (wordModIx l)  -- top left
->                           (wordModIx b) (wordModIx r)  -- bottom right
->                           attr                         -- video attribute
+> wix t l b r attr = window (modIx t) (modIx l)  -- top left
+>                           (modIx b) (modIx r)  -- bottom right
+>                           attr                 -- video attribute
 
 Our new demo program clears the (full) screen and then writes different output
 to each of the four windows:

@@ -66,8 +66,8 @@ at the corresponding (base port + 1) addresses:
 >          PIC2 r -> action (pic2port+1) (r.ix)
 
 > setIRQBit, clearIRQBit :: Port -> Ix ByteBits -> Proc Unit
-> clearIRQBit port ix     = port `updatePort` (\w -> bitClearWord w (bix ix))
-> setIRQBit port ix       = port `updatePort` (\w -> bitSetWord w (bix ix))
+> clearIRQBit port ix     = port `updatePort` (\w -> bitClear w (bix ix))
+> setIRQBit port ix       = port `updatePort` (\w -> bitSet w (bix ix))
 
 We define an explicitly typed version of relaxIx to avoid ambiguity issues:
 
@@ -86,7 +86,7 @@ We define an explicitly typed version of relaxIx to avoid ambiguity issues:
 >            sendEOI   pic1port     ix2  -- EOI for IRQ to PIC1
 
 > sendEOI        :: Word -> Ix ByteBits -> Proc Unit
-> sendEOI port ix = outb port (0x60 `or` ixToWord ix)
+> sendEOI port ix = outb port (0x60 `or` ixToBit ix)
 
 -------------------
 Managing the Programable Interval Timer:

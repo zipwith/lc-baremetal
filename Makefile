@@ -21,13 +21,13 @@ libs:
 	make -C libs-lc
 
 runall:	libs
-	-make -C serial-lc        run
-	-make -C hello-lc         run
-	-make -C winhello	  run
-	-make -C example-mimg-lc  run
-	-make -C example-idt-lc   run
-	-make -C switching-lc     run
-	-make -C calc-untyped     run
+	make -C serial-lc        run
+	make -C hello-lc         run
+	make -C winhello	  run
+	make -C example-mimg-lc  run
+	make -C example-idt-lc   run
+	make -C switching-lc     run
+	make -C calc-untyped     run
 
 clean:
 	-make -C simpleio         clean

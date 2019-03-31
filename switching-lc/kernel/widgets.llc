@@ -5,8 +5,8 @@
 A clock display:
 
 > clockLeft, clockRight :: Ix NumCols
-> clockLeft              = wordModIx 70
-> clockRight             = wordModIx 77
+> clockLeft              = modIx 70
+> clockRight             = modIx 77
 
 > export clock  :: Word -> Proc Unit
 > clock t = clockLoop clockRight t
@@ -33,18 +33,18 @@ The spinner:
 > export spin :: Proc Unit
 > spin = do p <- get spinpos
 >           c <- get (spinner @ p)
->           set spinpos (wordModIx (1 + ixToWord p))
->           let r = (vram @ ix0) @ wordModIx 79
+>           set spinpos (modIx (1 + ixToBit p))
+>           let r = (vram @ ix0) @ modIx 79
 >           o <- get r
 >           set r o[char=c]
 
 The "Knight Rider Bar":
 
-> area pos <- initStored (wordModIx 55) :: Ref (Stored (Ix NumCols))
-> area dir <- initStored True           :: Ref (Stored Bool)
+> area pos <- initStored (modIx 55) :: Ref (Stored (Ix NumCols))
+> area dir <- initStored True       :: Ref (Stored Bool)
 
-> barmin = wordModIx 46 :: Ix NumCols
-> barmax = wordModIx 68 :: Ix NumCols
+> barmin = modIx 46 :: Ix NumCols
+> barmax = modIx 68 :: Ix NumCols
 
 > export bar :: Proc Unit
 > bar = do p <- get pos
