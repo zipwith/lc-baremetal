@@ -13,6 +13,10 @@ image:
 	../mimg/mimgmake image \
 		noload:../mimg/mimgload \
 		bootdata:0x1000-0x3fff \
+		kernel/kernel.llc@0x400000 \
+		Makefile@0x440000 \
+		Makefile@0x460000 \
+		kernel/kernel.llc@0x500000 \
 		kernel/kernel
 
 #----------------------------------------------------------------------------
