@@ -78,6 +78,9 @@ printed in the window:
 >   [ row :: Stored (Ix NumRows)
 >   | col :: Stored (Ix NumCols) ]
 
+> initCoord    :: Ix NumRows -> Ix NumCols -> Init Coord
+> initCoord r c = Coord [ row <- initStored r | col <- initStored c ]
+
 We can initialize a window with a given set of coordinates by
 setting the `current` position to coincide with the `topleft`
 coordinate:
@@ -88,13 +91,10 @@ coordinate:
 >               Byte ->                     -- video attribute
 >                 Init Window
 > window top left bottom right attr
->   = Window [ topleft | bottomright
->            | current <- topleft
->            | attr <- initStored attr ]
->     where topleft     = Coord [ row <- initStored top
->                               | col <- initStored left  ]
->           bottomright = Coord [ row <- initStored bottom
->                               | col <- initStored right ]
+>   = let topleft     = initCoord top left
+>         bottomright = initCoord bottom right
+>     in Window [ topleft | bottomright
+>               | current <- topleft | attr <- initStored attr ]
 
 For example, we can described a `console` window that covers the
 full screen using the following definition:
