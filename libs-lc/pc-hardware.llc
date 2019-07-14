@@ -17,6 +17,8 @@ Managing the Programmable Interrupt Controllers:
 We assume a standard configuration of two 8259A PICs with
 the output from PIC2 connected to the IR2 pin on PIC1.
 
+> type NumIRQs = 16
+
 > bitdata IRQ = PIC1 [ B0 | ix :: Ix ByteBits ]   -- Hardware interrupts on PIC1
 >             | PIC2 [ B1 | ix :: Ix ByteBits ]   -- Hardware interrupts on PIC2
 
