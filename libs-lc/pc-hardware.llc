@@ -23,8 +23,8 @@ the output from PIC2 connected to the IR2 pin on PIC1.
 Each of the two PICs are controlled by reading/writing to
 IO ports at known base addresses:
 
-> pic1port = 0x20  -- control at +0,  mask at +1
-> pic2port = 0xa0
+> pic1 = port 0x20  -- control at +0,  mask at +1
+> pic2 = port 0xa0
 
 We will configure the two PICs to remap hardware IRQs 0x0-0xf
 in to the range 0x20-0x2f:
@@ -34,12 +34,12 @@ in to the range 0x20-0x2f:
 The following function can be used to send appropriate ICWs
 (initialization control words) to initialize a single PIC:
 
-> initPIC port base info init
->   = do outb port     0x11  -- ICW1: Initialize + will be sending ICW4
->        outb (port+1) base  -- ICW2: Interrupt vector offset
->        outb (port+1) info  -- ICW3: Configure for two PICs
->        outb (port+1) 0x01  -- ICW4: 8086 mode
->        outb (port+1) init  -- OCW1: Set initial mask
+> initPIC pic base info init
+>   = do outb pic                0x11  -- ICW1: Initialize + will be sending ICW4
+>        outb (pic `portPlus` 1) base  -- ICW2: Interrupt vector offset
+>        outb (pic `portPlus` 1) info  -- ICW3: Configure for two PICs
+>        outb (pic `portPlus` 1) 0x01  -- ICW4: 8086 mode
+>        outb (pic `portPlus` 1) init  -- OCW1: Set initial mask
 
 [Note: some sources suggest that there should be a delay between
 each output byte ... but I don't see that in the datasheet ...]
@@ -48,8 +48,8 @@ The two PICs together can now be initialized as follows:
 
 > export initPICs :: Proc Unit
 > initPICs
->   = do initPIC pic1port irqBase     0x04 0xfb -- all but IRQ2 masked out
->        initPIC pic2port (irqBase+8) 0x02 0xff
+>   = do initPIC pic1 irqBase     0x04 0xfb -- all but IRQ2 masked out
+>        initPIC pic2 (irqBase+8) 0x02 0xff
 
 Once they have been initialized, individual hardware interrupts
 for each PIC can be enabled or disabled by updating the values
@@ -62,8 +62,8 @@ at the corresponding (base port + 1) addresses:
 > withIRQ :: (Port -> Ix ByteBits -> Proc Unit) -> IRQ -> Proc Unit
 > withIRQ action irq
 >   = do case irq of
->          PIC1 r -> action (pic1port+1) (r.ix)
->          PIC2 r -> action (pic2port+1) (r.ix)
+>          PIC1 r -> action (pic1 `portPlus` 1) (r.ix)
+>          PIC2 r -> action (pic2 `portPlus` 1) (r.ix)
 
 > setIRQBit, clearIRQBit :: Port -> Ix ByteBits -> Proc Unit
 > clearIRQBit port ix     = port `updatePort` (\w -> bitClear w (bix ix))
@@ -78,15 +78,15 @@ We define an explicitly typed version of relaxIx to avoid ambiguity issues:
 > maskAckIRQ irq
 >   = do case irq of
 >          PIC1 r ->
->            setIRQBit (pic1port+1) r.ix -- disable interrupt
->            sendEOI   pic1port     r.ix -- EOI to PIC1
+>            setIRQBit (pic1 `portPlus` 1) r.ix -- disable interrupt
+>            sendEOI   pic1                r.ix -- EOI to PIC1
 >          PIC2 r ->
->            setIRQBit (pic1port+1) r.ix -- disable interrupt
->            sendEOI   pic2port     r.ix -- EOI to PIC2
->            sendEOI   pic1port     ix2  -- EOI for IRQ to PIC1
+>            setIRQBit (pic1 `portPlus` 1) r.ix -- disable interrupt
+>            sendEOI   pic2                r.ix -- EOI to PIC2
+>            sendEOI   pic1                ix2  -- EOI for IRQ to PIC1
 
-> sendEOI        :: Word -> Ix ByteBits -> Proc Unit
-> sendEOI port ix = outb port (0x60 `or` ixToBit ix)
+> sendEOI        :: Port -> Ix ByteBits -> Proc Unit
+> sendEOI pic ix  = outb pic (0x60 `or` ixToBit ix)
 
 -------------------
 Managing the Programable Interval Timer:
@@ -108,9 +108,9 @@ The timer can now be configured and then the corresponding IRQ
 can be enabled, using a short sequence of outb instructions:
 
 > export startTimer :: Proc Unit
-> startTimer = do outb 0x43 0x34  -- PIT control (0x43): counter 0, 2 bytes, mode 2, binary
->                 outb 0x40 (pitInterval `and` 255)            -- counter 0, lsb
->                 outb 0x40 ((pitInterval `lshr` 8) `and` 255) -- counter 0, msb
+> startTimer = do outb (port 0x43) 0x34  -- PIT control (0x43): counter 0, 2 bytes, mode 2, binary
+>                 outb (port 0x40) (pitInterval `and` 255)            -- counter 0, lsb
+>                 outb (port 0x40) ((pitInterval `lshr` 8) `and` 255) -- counter 0, msb
 >                 enableIRQ timerIRQ
 
 NOTE: again, some sources suggest that we should include a

@@ -5,15 +5,16 @@
 > export sputchar :: Word -> Proc Unit
 > sputchar c
 >   = let put :: Word -> Proc Unit
->         put c = do status <- inb (portcom1+5)
+>         put c = do status <- inb com1ctrl
 >                    if (status `and` 0x60) == 0
 >                      then put c
->                      else outb portcom1 c
+>                      else outb com1data c
 >     in do put c
 >           if c=='\n'
 >             then put '\r'
 
-> portcom1 = 0x3f8
+> com1data = port 0x3f8
+> com1ctrl = com1data `portPlus` 5
 
 PRINTING ON THE SERIAL PORT:
 ----------------------------

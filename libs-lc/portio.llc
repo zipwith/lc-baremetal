@@ -1,12 +1,18 @@
+> require "bit.llc"
+
 -----------------------
 # IO PORTS
-
 [Link with ia32.bc for implementations.]
 
-> type Port = Word
+> type Port = Bit 16
 
-> external inb  :: Word -> Proc Word
-> external outb :: Word -> Word -> Proc Unit
+> external port {primWordToBit 16} :: Word -> Port
+
+> export portPlus :: Port -> Word -> Port
+> portPlus p n     = p `bitAdd` port n
+
+> external inb  :: Port -> Proc Word
+> external outb :: Port -> Word -> Proc Unit
 
 > export updatePort  :: Port -> (Word -> Word) -> Proc Unit
 > port `updatePort` f = do w <- inb port
