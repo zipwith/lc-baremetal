@@ -1,6 +1,6 @@
 > require "serial.llc"
 
-The demo program displays two copies of a text greeting on the serial
+This demo program displays two copies of a text greeting on the serial
 port:
 
 > export hello

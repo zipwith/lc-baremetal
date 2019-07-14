@@ -8,8 +8,8 @@ This file contains a recreation of the LLP "example-mimg" demo.
 
 > area intervals <- IntervalSet[] :: Ref IntervalSet
 
-The demo program just clears the screen and then displays two copies
-of a text greeting:
+The demo program uses details from the mimg boot data to calculate and
+display a set of available memory intervals:
 
 > export kernel
 > kernel :: Proc Unit
