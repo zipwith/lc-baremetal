@@ -24,13 +24,16 @@
 -----------------------
 # USER-LEVEL VIRTUAL MEMORY ADDRESSES
 
-> struct SuperPage /4M
->   [ bytes :: Array 4M (Stored Byte) ]
->   aligned 4M
+> type PageSize      = 4K
+> type SuperPageSize = 4M
 
-> struct Page /4K
->   [ bytes :: Array 4K (Stored Byte) ]
->   aligned 4K
+> struct SuperPage /SuperPageSize
+>   [ bytes :: Array SuperPageSize (Stored Byte) ]
+>   aligned SuperPageSize
+
+> struct Page /PageSize
+>   [ bytes :: Array PageSize (Stored Byte) ]
+>   aligned PageSize
 
 > bitdata VAddr /WordSize = VAddr [ vp :: VPage | offset :: Bit 12 ]
 >                           -- deriving Eq, ToBits
@@ -98,10 +101,11 @@
 -----------------------
 ### Page Directory Layout
 
-> struct PageDir /4K [ pdes      :: Array UserSuperPages    (Stored PDE)
->                    | kpdes     :: Array KernelSuperPages1 (Stored KPDE)
->                    | bufferPDE :: Stored PDE ] 
->        aligned 4K
+> struct PageDir /PageSize
+>   [ pdes      :: Array UserSuperPages    (Stored PDE)
+>   | kpdes     :: Array KernelSuperPages1 (Stored KPDE)
+>   | bufferPDE :: Stored PDE ] 
+>   aligned PageSize
 
 > initPageDir :: Init PageDir
 > initPageDir  = PageDir [ pdes      <- initArray (\ix -> initStored UnmappedPDE[])
@@ -113,19 +117,19 @@
 
 ## Page Table Layout
 
-> bitdata PTE /WordSize                                -- Defines the format for Page Table Entries
+> bitdata PTE /WordSize                           -- Defines the format for Page Table Entries
 >   = UnmappedPTE  [ unused=bit0  :: Bit 31
->                  | B0 ]                              -- Unused entry (present bit reset)
->   | MappedPTE    [ page         :: Phys Page         -- physical address of mapped page
+>                  | B0 ]                         -- Unused entry (present bit reset)
+>   | MappedPTE    [ page         :: Phys Page    -- physical address of mapped page
 >                  | unused=bit0  :: Bit 3
->                  | global=False :: Bool              -- 1 => global translation (if cr4.pge=1)
->                  | pat=False    :: Bool              -- PAT bit (not used)
->                  | attrs        :: PagingAttrs       -- paging attributes
->                  | B1 ]                              -- present bit set
+>                  | global=False :: Bool         -- 1 => global translation (if cr4.pge=1)
+>                  | pat=False    :: Bool         -- PAT bit (not used)
+>                  | attrs        :: PagingAttrs  -- paging attributes
+>                  | B1 ]                         -- present bit set
 
-> struct PageTable /4K                                 -- Defines the layout of Page Table objects
+> struct PageTable /PageSize                      -- Defines the layout of Page Table objects
 >   [ ptes :: Array 1K (Stored PTE) ]
->   aligned 4K
+>   aligned PageSize
 
 > initPageTable :: Init PageTable
 > initPageTable  = PageTable [ ptes <- initArray (\ix -> initStored UnmappedPTE[]) ]
