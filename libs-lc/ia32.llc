@@ -296,7 +296,7 @@
 >             | segregs <- SegRegs [ ds     <- initStored ds
 >                                  | es     <- initStored ds
 >                                  | fs     <- initStored ds
->                                  | gs     <- initStored bufferPtrDS ]
+>                                  | gs     <- initStored ds {-bufferPtrDS-} ]
 >             | iframe  <- IFrame  [ err    <- initStored 0
 >                                  | eip    <- initStored eip
 >                                  | eflags <- initStored flags
