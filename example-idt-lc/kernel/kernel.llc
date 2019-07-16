@@ -1,5 +1,6 @@
 This file contains a recreation of the LLP "example-idt" demo.
   
+> require "noserial.llc"
 > require "wvram.llc"
 > require "mimg.llc"
 > require "cursor.llc"

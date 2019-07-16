@@ -1,0 +1,14 @@
+Provides a dummy implementation for sputchar that discards
+input characters rather than writing them to the serial port.
+Use:
+
+  require "noserial.llc"
+
+before the corresponding require for "wvram.llc" to turn off
+simulataneous output to the screen and the serial port.
+
+> require "core.llc"
+
+> export sputchar :: Word -> Proc Unit
+> sputchar c       = return Unit
+

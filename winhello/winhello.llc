@@ -2,6 +2,7 @@ This file contains a recreation of the LLP "hello" demo in Habit/LC.
 It is a (very) simple client of the vram library for video RAM output
 on a PC:
 
+> require "noserial.llc"
 > require "wvram.llc"
 
 We declare four text windows, one for each corner of the screen:

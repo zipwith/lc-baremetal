@@ -166,7 +166,8 @@ number:
 
 > export wputchar :: Ref Window -> Word -> Proc Unit
 > wputchar w c
->   = do row <- get w.current.row
+>   = do sputchar c
+>        row <- get w.current.row
 >        if (c == '\r') || (c == '\n')
 >          then newline w row
 >          else col  <- get w.current.col

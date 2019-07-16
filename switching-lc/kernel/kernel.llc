@@ -1,5 +1,6 @@
-This file contains a LC solution to the LLP context switching lab.
+This file contains an LC solution to the LLP context switching lab.
   
+> require "serial.llc"
 > require "wvram.llc"
 > require "mimg.llc"
 > require "cursor.llc"

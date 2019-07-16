@@ -1,5 +1,6 @@
 This file contains a recreation of the LLP "example-mimg" demo.
 
+> require "serial.llc"
 > require "wvram.llc"
 > require "intervals.llc"
 > require "mimg.llc"
