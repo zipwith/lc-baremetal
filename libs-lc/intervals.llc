@@ -66,7 +66,7 @@ memory map is as follows:
   reserved.
 
 - Finally, we split each of the remaining intervals into a
-  collection of flexpages ("Fpages" for short), each of
+  collection of flexpages ("FPages" for short), each of
   which is a block of 2^k addresses, starting at an address
   that is a multiple of 2^k for memory for some size k.
 
@@ -426,28 +426,35 @@ FLEXPAGES:
 > pageDown   :: Word -> Word
 > pageDown a  = pageEnd (a - pageMask)
 
-> validFpage :: Interval -> Word -> Bool
-> validFpage int bits
+> validFPage :: Interval -> Word -> Bool
+> validFPage int bits
 >   = (pageBits <= bits)         &&   -- minimal size is a page
 >     (bits <= wordBits)         &&   -- maximal size is word width
 >     ((int.lo `and` mask) == 0) &&   -- start is aligned
 >     ((int.lo + mask) == int.hi)     -- end is consistent with size
 >     where mask = lowBits bits
 
-> type FpageOut = Interval -> Word -> Proc Unit
+> type PutFPage = Interval -> Word -> Proc Unit
 
-> export enumFpages1
-> enumFpages1 = enumFpages outFpage
+> export enumFPages1 :: Interval -> Proc Unit
+> enumFPages1 int = enumFPages putFPage int.lo int.hi
 
-> external outFpage :: FpageOut
+> --external outFPage :: PutFPage
+> putFPage :: PutFPage
+> putFPage int size
+>   = do puts "  "
+>        putInterval int
+>        puts " "
+>        putSize size
+>        puts "\n"
 
-> enumFpages :: FpageOut -> Word -> Word -> Proc Unit
-> enumFpages out lo hi
->   = do if initLo < lo then return Unit else findFpage initLo
+> enumFPages :: PutFPage -> Word -> Word -> Proc Unit
+> enumFPages out lo hi
+>   = do if initLo < lo then return Unit else findFPage initLo
 >  where
 >   initLo   = pageUp lo
 >   initMask = lowBits pageBits
->   findFpage lo
+>   findFPage lo
 >      = let search mask bits
 >              -- Invariant: There is a valid fpage of size bits (with the
 >              -- corresponding mask) at starting address lo.
@@ -461,7 +468,7 @@ FLEXPAGES:
 >            found  mask bits
 >              = do let end = lo + mask
 >                   out Interval[lo|hi=end] bits
->                   if end < hi then findFpage (end+1)
+>                   if end < hi then findFPage (end+1)
 >                               else return Unit
 >        in do if hi < (lo+initMask)
 >                then return Unit

@@ -14,7 +14,7 @@ display a set of available memory intervals:
 > export kernel
 > kernel :: Proc Unit
 > kernel  = do clearScreen
->              puts "Trivial kernel has booted!\n"
+>              puts "calc-untyped kernel has booted!\n"
 >              putMimgBootData bootdata
 >              mimgMMap bootdata >>= forallDo nextMimgMMap addInterval
 >              putIntervals intervals
@@ -22,6 +22,7 @@ display a set of available memory intervals:
 >              reserveInterval intervals Interval[lo=0xc000_0000|hi=0xffff_ffff]
 >              mimgHeaders bootdata >>= forallDo nextMimgHeader reserve
 >              putIntervals intervals
+>              fpageIntervals intervals
 >              puts "Halting kernel, returning to mimgload\n"
 
 > addInterval :: Ref MimgMMap -> Proc Unit
@@ -70,3 +71,20 @@ display a set of available memory intervals:
 >                          else puts "insert failed\n"
 >                     addIntervals (snd p)
 > -}
+
+> fpageIntervals :: Ref IntervalSet -> Proc Unit
+> fpageIntervals intset
+>   = case<- get intset.last of
+>       Empty  -> return Unit
+>       Last l -> loop ix0 l.n
+>  where
+>   loop i n
+>     = do int <- get (intset.array @ i)
+>          puts "interval  "
+>          putInterval int
+>          puts "\n"
+>          enumFPages1 int
+>          case i `ltInc` n of
+>            Nothing -> return Unit
+>            Just j  -> loop j n
+
