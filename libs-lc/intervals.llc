@@ -445,8 +445,10 @@ FLEXPAGES:
 >   = do puts "  "
 >        putInterval int
 >        puts " "
->        putSize size
->        puts "\n"
+>        putSize ((int.hi - int.lo) + 1)
+>        puts " ("
+>        putUnsigned size
+>        puts " bits)\n"
 
 > enumFPages :: PutFPage -> Word -> Word -> Proc Unit
 > enumFPages out lo hi
