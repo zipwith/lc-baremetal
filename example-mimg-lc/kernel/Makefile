@@ -13,10 +13,9 @@ init.o: init.s
 	$(CC) -c -o init.o init.s
 
 kernel.ll: kernel.llc
-	milc kernel.llc -lkernel.ll --32 -pcsosrsos -i../../libs-lc \
-		--target=i386-pc-linux-gnu \
-		--llvm-main=kernel \
-		--mil-main=kernel
+	milc $(MILOPTS) kernel.llc -lkernel.ll -i../../libs-lc \
+		-mkernel.mil -dv \
+		--llvm-main=kernel --mil-main=kernel > debug.txt
 
 kernel.bc: kernel.ll
 	llvm-as -o=kernel.bc kernel.ll

@@ -44,10 +44,8 @@ boot.o: boot.s
 	$(CC) -c -o boot.o boot.s
 
 winhello.o: winhello.llc
-	milc winhello.llc -lwinhello.ll --32 -pcsosrsos -i../libs-lc \
-		--target=i386-pc-linux-gnu \
-		--llvm-main=hello \
-		--mil-main=hello
+	milc $(MILOPTS) winhello.llc -lwinhello.ll -i../libs-lc \
+		--llvm-main=hello --mil-main=hello
 	clang -c -m32 ${CCOPTS} -o winhello.o winhello.ll
 
 #----------------------------------------------------------------------------

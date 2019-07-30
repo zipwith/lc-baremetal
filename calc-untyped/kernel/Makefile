@@ -13,10 +13,8 @@ init.o: init.s
 	$(CC) -c -o init.o init.s
 
 kernel.ll: kernel.llc
-	milc kernel.llc -lkernel.ll --32 -pcsosrsos -i../../libs-lc \
-		--target=i386-pc-linux-gnu \
-		--llvm-main=kernel \
-		--mil-main=kernel
+	milc $(MILOPTS) kernel.llc -lkernel.ll -i../../libs-lc \
+		--llvm-main=kernel --mil-main=kernel
 
 kernel.bc: kernel.ll
 	llvm-as -o=kernel.bc kernel.ll
@@ -34,6 +32,6 @@ opt-combined.o: opt-combined.bc
 #----------------------------------------------------------------------------
 # tidy up after ourselves ...
 clean:
-	-rm -r kernel *.o *.map *.ll
+	-rm -r kernel opt-combined.s *.bc *.o *.map *.ll
 
 #----------------------------------------------------------------------------

@@ -44,10 +44,8 @@ boot.o: boot.s
 	$(CC) -c -o boot.o boot.s
 
 hello.ll: hello.llc
-	milc hello.llc -lhello.ll --32 -pcsoros -i../libs-lc \
-		--target=i386-pc-linux-gnu \
-		--llvm-main=hello \
-		--mil-main=hello
+	milc $(MILOPTS) hello.llc -lhello.ll -i../libs-lc \
+		--llvm-main=hello --mil-main=hello
 
 hello.bc: hello.ll
 	llvm-as -o=hello.bc hello.ll

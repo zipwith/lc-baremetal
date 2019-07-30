@@ -44,10 +44,8 @@ boot.o: boot.s
 	$(CC) -c -o boot.o boot.s
 
 hello.o: hello.llc
-	milc hello.llc -lhello.ll --32 -pcsoros -i../libs-lc \
-		--target=i386-pc-linux-gnu \
-		--llvm-main=hello \
-		--mil-main=hello
+	milc $(MILOPTS) hello.llc -lhello.ll -i../libs-lc \
+		--llvm-main=hello --mil-main=hello
 	clang -c -m32 ${CCOPTS} -o hello.o hello.ll
 
 #Replace the above rule for hello.o with the following to build the
