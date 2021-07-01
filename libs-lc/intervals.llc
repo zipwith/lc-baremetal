@@ -28,15 +28,15 @@ much memory, for example, then it may be possible to reduce the
 cost of building the system by installing a smaller amount of
 memory.  In addition, the designers of the system may decide to
 reserve certain regions of memory for special purposes: to store
-the code or data for the operating system, for example, to to
+the code or data for the operating system, for example, to
 provide access to "memory mapped" I/O devices.
 
 The details about which regions of addresses are valid is often
 referred to as the "memory map" for the system, and figuring out
 those details is one of the first tasks that a typical operating
-system has to deal with when the system is first booted up.
-This information is needed, for example, to determine which
-regions of memory can safely be allocated to user programs.
+system has to deal during the boot process.  This information is
+needed, for example, to determine which regions of memory can
+safely be allocated to user programs.
 
 In the rest of this file, we will assume that the key inputs
 to this process are two lists of intervals, one describing
@@ -405,14 +405,14 @@ FLEXPAGES:
 > lowBits    :: Word -> Word
 > lowBits n   = (1 `shl` n) - 1
 
-> pageBits   :: Word
-> pageBits    = 12
+> minFPageBits   :: Word
+> minFPageBits    = 12
 
-> wordBits   :: Word
-> wordBits    = 32
+> maxFPageBits   :: Word
+> maxFPageBits    = 32
 
 > pageMask   :: Word
-> pageMask    = lowBits pageBits
+> pageMask    = lowBits minFPageBits
 
 > pageStart  :: Word -> Word
 > pageStart a = a `and` not pageMask
@@ -428,8 +428,8 @@ FLEXPAGES:
 
 > validFPage :: Interval -> Word -> Bool
 > validFPage int bits
->   = (pageBits <= bits)         &&   -- minimal size is a page
->     (bits <= wordBits)         &&   -- maximal size is word width
+>   = (minFPageBits <= bits)     &&   -- minimal size is a page
+>     (bits <= maxFPageBits)     &&   -- maximal size is word width
 >     ((int.lo `and` mask) == 0) &&   -- start is aligned
 >     ((int.lo + mask) == int.hi)     -- end is consistent with size
 >     where mask = lowBits bits
@@ -455,7 +455,7 @@ FLEXPAGES:
 >   = do if initLo < lo then return Unit else findFPage initLo
 >  where
 >   initLo   = pageUp lo
->   initMask = lowBits pageBits
+>   initMask = lowBits minFPageBits
 >   findFPage lo
 >      = let search mask bits
 >              -- Invariant: There is a valid fpage of size bits (with the
@@ -464,7 +464,7 @@ FLEXPAGES:
 >                   if ((lo `and` newmask) /= 0) || (hi < (lo+newmask))
 >                     then found mask bits
 >                     else let newBits = bits+1 in
->                          if newBits < wordBits
+>                          if newBits < maxFPageBits
 >                            then search newmask newBits
 >                            else found newmask newBits
 >            found  mask bits
@@ -474,5 +474,5 @@ FLEXPAGES:
 >                               else return Unit
 >        in do if hi < (lo+initMask)
 >                then return Unit
->                else search initMask pageBits
+>                else search initMask minFPageBits
 
