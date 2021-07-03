@@ -102,7 +102,7 @@ interrupt 0 on PIC1:
 We assume that the timer clock frequency is 1.193182MHz and
 that we want timer interrupts to occur 100 times per second:
 
-> hz             = 100  -- frequence of timer interrupts
+> hz             = 100  -- frequency of timer interrupts
 > clockFrequency = 1193182
 > pitInterval    = (clockFrequency + (hz / 2)) / hz
 
