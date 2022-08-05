@@ -196,10 +196,8 @@ added to the array to expand the set, up to the maximum
 capacity that is specified by the constant `NumIntervals`:
 
 > struct IntervalSet
->   [ array <- initIntervalArray :: Array NumIntervals (Stored Interval)
->   | last  <- initStored Empty  :: Stored Last ]
-
-> initIntervalArray = initArrayAll Interval[ lo=0 | hi=0 ]
+>   [ array <- initAllStored Interval[ lo=0 | hi=0 ] :: Array NumIntervals (Stored Interval)
+>   | last  <- initStored Empty                      :: Stored Last ]
 
 > type NumIntervals  = 8  -- maximum number of intervals
 
