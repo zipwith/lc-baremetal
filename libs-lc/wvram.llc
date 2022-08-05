@@ -227,7 +227,7 @@ PRINTING ON THE "CONSOLE":
 > export putBin, putOctal, putHex :: Putnum
 > export putSize                  :: Putnum
 > export putDigitsFmt
->   :: NZBit WordSize -- number base
+>   :: NZBit WordBits -- number base
 >      -> Ix MaxWidth -- maximum number of digits to display
 >      -> Ix MaxWidth -- minimum field width
 >      -> Word        -- character to use as padding
@@ -254,7 +254,7 @@ PRINTING IN A WINDOW:
 > export wputSize                    :: Ref Window -> Putnum
 > export wputDigitsFmt
 >   :: Ref Window        -- address of output window
->      -> NZBit WordSize -- number base
+>      -> NZBit WordBits -- number base
 >      -> Ix MaxWidth    -- maximum number of digits to display
 >      -> Ix MaxWidth    -- minimum field width
 >      -> Word           -- character to use as padding

@@ -24,7 +24,7 @@ PRINTING ON THE SERIAL PORT:
 > export sputBin, sputOctal, sputHex :: Putnum
 > export sputSize                    :: Putnum
 > export sputDigitsFmt
->   :: NZBit WordSize -- number base
+>   :: NZBit WordBits -- number base
 >      -> Ix MaxWidth -- maximum number of digits to display
 >      -> Ix MaxWidth -- minimum field width
 >      -> Word        -- character to use as padding

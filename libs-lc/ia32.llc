@@ -35,7 +35,7 @@
 >   [ bytes :: Array PageSize (Stored Byte) ]
 >   aligned PageSize
 
-> bitdata VAddr /WordSize = VAddr [ vp :: VPage | offset :: Bit 12 ]
+> bitdata VAddr /WordBits = VAddr [ vp :: VPage | offset :: Bit 12 ]
 >                           -- deriving Eq, ToBits
 > bitdata VPage /20       = VPage [ sp :: Ix UserSuperPages | pg :: Ix 1K ]
 >                           -- deriving Eq, ToBits
@@ -53,7 +53,7 @@
 -----------------------
 ### User-Space Page Directory Entries
 
-> bitdata PDE /WordSize                                -- Defines format for Page Directory Entries
+> bitdata PDE /WordBits                                -- Defines format for Page Directory Entries
 >  = UnmappedPDE  [ unused=bit0     :: Bit 31 | B0 ]   -- Unused entry (present bit reset)
 >  | PageTablePDE [ ptab            :: Phys PageTable  -- physical address of page table
 >                 | unused=bit0     :: Bit 4
@@ -89,7 +89,7 @@
 -----------------------
 ### Kernel-Space Page Directory Entries
 
-> bitdata KPDE /WordSize   -- Kernel Page Directory Entries, a variant of SuperPagePDE
+> bitdata KPDE /WordBits   -- Kernel Page Directory Entries, a variant of SuperPagePDE
 >  = KPDE [ B00                                 -- leading zeros
 >         | ix          :: Ix KernelSuperPages1 -- physical superpage number
 >         | unused=bit0 :: Bit 13
@@ -117,7 +117,7 @@
 
 ## Page Table Layout
 
-> bitdata PTE /WordSize                           -- Defines the format for Page Table Entries
+> bitdata PTE /WordBits                           -- Defines the format for Page Table Entries
 >   = UnmappedPTE  [ unused=bit0  :: Bit 31
 >                  | B0 ]                         -- Unused entry (present bit reset)
 >   | MappedPTE    [ page         :: Phys Page    -- physical address of mapped page
@@ -137,7 +137,7 @@
 -----------------------
 # PAGING CONTROL REGISTERS
 
-> bitdata CR3 /WordSize
+> bitdata CR3 /WordBits
 >   = CR3 [ phys         :: Phys PageDir
 >         | unused1=bit0 :: Bit 7
 >         | caching      :: Caching
@@ -154,7 +154,7 @@
 >                         if phys `physNe` cr3.phys then
 >                           setCR3 cr3[phys]
 
-> bitdata PageFaultErrorCode /WordSize
+> bitdata PageFaultErrorCode /WordBits
 >  = PageFaultErrorCode [ unused=bit0 :: Bit 27
 >                       | id          :: Bit 1   -- 0 => data, 1 => instruction fetch
 >                       | reservedBit :: Bit 1   -- 1 => fault from reserved bit violation
@@ -167,7 +167,7 @@
 
 > type Ring = Ix 4  -- protection level: 0=kernel, 3=user level
 
-> bitdata SegSelector /WordSize
+> bitdata SegSelector /WordBits
 >   = SegSelector [ 0 | index :: Ix 8K | table=B0 :: Bit 1 | rpl :: Ring ]
 >     -- index: offset in table
 >     -- table: 0=GDT, 1=LDT
@@ -194,7 +194,7 @@
 
 ## Flags
 
-> bitdata IA32Flags/WordSize
+> bitdata IA32Flags/WordBits
 >   = IA32Flags [ 0                     -- Reserved: FIXME allow type sig
 >               | id   = B0  :: Bit 1   -- identification flag
 >               | vip  = B0  :: Bit 1   -- virtual interrupt pending
