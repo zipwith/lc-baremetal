@@ -71,10 +71,10 @@ at the corresponding (base port + 1) addresses:
 > clearIRQBit port ix     = port `updatePort` (\w -> bitClear w (bix ix))
 > setIRQBit port ix       = port `updatePort` (\w -> bitSet w (bix ix))
 
-We define an explicitly typed version of relaxIx to avoid ambiguity issues:
+We define an explicitly typed version of intoIx to avoid ambiguity issues:
 
 > bix :: Ix ByteBits -> Ix WordBits
-> bix  = relaxIx
+> bix  = intoIx
 
 > export maskAckIRQ :: IRQ -> Proc Unit
 > maskAckIRQ irq
